@@ -3,7 +3,7 @@
 import plotly.graph_objects as go
 import plotly.io as pio
 
-from ai_lab.viz.colours import LIFE_HISTORIES
+from dental_3d_vae.viz.colours import LIFE_HISTORIES
 
 
 def use_theme() -> None:

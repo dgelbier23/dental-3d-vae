@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_lab.experiments.config import ExperimentConfig, load_config, save_config
+from dental_3d_vae.experiments.config import ExperimentConfig, load_config, save_config
 
 
 def test_save_then_load_round_trips(tmp_path: Path) -> None:

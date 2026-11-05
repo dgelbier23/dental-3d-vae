@@ -1,5 +1,5 @@
 
-# AI Lab
+# dental-3d-vae
 
 A development workspace for machine learning and deep learning.
 

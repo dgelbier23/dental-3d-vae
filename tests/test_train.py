@@ -3,9 +3,9 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from ai_lab.ml.data import make_dataloaders, make_synthetic_classification
-from ai_lab.ml.model import SimpleClassifier
-from ai_lab.ml.train import train_one_epoch
+from dental_3d_vae.ml.data import make_dataloaders, make_synthetic_classification
+from dental_3d_vae.ml.model import SimpleClassifier
+from dental_3d_vae.ml.train import train_one_epoch
 
 CPU = torch.device("cpu")
 

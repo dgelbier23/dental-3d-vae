@@ -4,8 +4,8 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from ai_lab.experiments.config import ExperimentConfig, load_config
-from ai_lab.experiments.runs import create_run_dir, load_metrics, load_run, log_metrics, save_checkpoint
+from dental_3d_vae.experiments.config import ExperimentConfig, load_config
+from dental_3d_vae.experiments.runs import create_run_dir, load_metrics, load_run, log_metrics, save_checkpoint
 
 
 def test_create_run_dir_saves_config_and_environment(tmp_path: Path) -> None:

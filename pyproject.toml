@@ -4,7 +4,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-lab"
+name = "dental-3d-vae"
 version = "0.1.0"
 description = "Machine learning experimentation workspace"
 requires-python = ">=3.10"

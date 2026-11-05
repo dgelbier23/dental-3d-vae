@@ -7,4 +7,4 @@ numpy
 torch==2.11.0
 pytest
 jupyter
-plotly  # ai_lab.viz.plotting and notebooks; preinstalled in Colab.
+plotly  # dental_3d_vae.viz.plotting and notebooks; preinstalled in Colab.

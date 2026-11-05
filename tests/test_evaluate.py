@@ -3,8 +3,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from ai_lab.ml.evaluate import evaluate
-from ai_lab.ml.model import SimpleClassifier
+from dental_3d_vae.ml.evaluate import evaluate
+from dental_3d_vae.ml.model import SimpleClassifier
 
 CPU = torch.device("cpu")
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_lab.runtime import env
+from dental_3d_vae.runtime import env
 
 
 def test_describe_environment_locally() -> None:

@@ -1,6 +1,6 @@
 import torch
 
-from ai_lab.ml.data import make_dataloaders, make_synthetic_classification
+from dental_3d_vae.ml.data import make_dataloaders, make_synthetic_classification
 
 
 def _dataset(seed: int = 0, n_samples: int = 200, num_classes: int = 3):

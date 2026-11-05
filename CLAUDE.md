@@ -1,5 +1,5 @@
 
-# AI Lab — Project Instructions
+# dental-3d-vae — Project Instructions
 
 ## Project purpose
 A clean, reproducible workspace for machine learning,
@@ -25,7 +25,7 @@ deep learning, and AI experiments.
   is installed.
 
 ## Architecture
-- Put reusable Python code in src/ai_lab/, in the folder for its topic:
+- Put reusable Python code in src/dental_3d_vae/, in the folder for its topic:
   - ml/: datasets, models, training and evaluation.
   - experiments/: run configuration and saved run outputs.
   - runtime/: environment detection, devices and seeding.
@@ -33,7 +33,7 @@ deep learning, and AI experiments.
 - Put exploratory notebooks in notebooks/.
 - Every notebook's first code cell is the Colab bootstrap cell, copied unchanged
   from notebooks/01_gpu_check.ipynb (tests/test_notebooks.py checks this).
-  All other logic comes from src/ai_lab/.
+  All other logic comes from src/dental_3d_vae/.
 - Put automated tests in tests/.
 - Keep generated models and datasets out of Git.
 - Keep configuration separate from model implementation.
@@ -57,9 +57,9 @@ deep learning, and AI experiments.
 - When reviewing code, point out bloat and propose the simpler version.
 
 ## Visualisation
-- Use the 7 LifeHistories colours from src/ai_lab/viz/colours.py; no other palettes or
+- Use the 7 LifeHistories colours from src/dental_3d_vae/viz/colours.py; no other palettes or
   colour roles, and no hardcoded hex values in notebooks or plotting code.
-- Plotly figures use the theme: call `ai_lab.viz.plotting.use_theme()` once per notebook.
+- Plotly figures use the theme: call `dental_3d_vae.viz.plotting.use_theme()` once per notebook.
 
 ## Compute
 - Code must support CPU execution unless a task requires a GPU.

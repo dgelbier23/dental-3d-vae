@@ -7,7 +7,7 @@ from pathlib import Path
 
 import torch
 
-REPO_ROOT = Path(__file__).resolve().parents[3]  # src/ai_lab/runtime/env.py -> repo root
+REPO_ROOT = Path(__file__).resolve().parents[3]  # src/dental_3d_vae/runtime/env.py -> repo root
 DRIVE_ROOT = Path("/content/drive/MyDrive")
 
 
