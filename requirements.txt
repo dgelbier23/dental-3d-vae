@@ -1,0 +1,10 @@
+# Local development environment (CPU).
+# torch is pinned to match Google Colab's preinstalled version, so local tests
+# exercise the same PyTorch API that Colab runs. Re-check after Colab updates
+# (notebooks/01_gpu_check.ipynb prints the Colab version).
+# Do NOT install this file in Colab: it would replace Colab's CUDA build.
+numpy
+torch==2.11.0
+pytest
+jupyter
+plotly  # ai_lab.viz.plotting and notebooks; preinstalled in Colab.
