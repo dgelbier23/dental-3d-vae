@@ -12,3 +12,5 @@ trimesh>=4  # mesh loading/sampling; the only one not preinstalled in Colab.
 pytest
 jupyter
 plotly  # dental_3d_vae.viz.plotting and notebooks; preinstalled in Colab.
+pillow  # GIF assembly; preinstalled in Colab.
+kaleido  # Saving Plotly figures as images (local only; uses the installed Chrome).
