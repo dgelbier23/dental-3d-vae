@@ -24,6 +24,82 @@ python -m venv .venv
 
 In VS Code, select the `.venv` kernel for notebooks.
 
+## Data preparation
+
+Turns intra-oral jaw scans into a dataset of individual teeth, each a normalised 2,048-point
+cloud, ready for training.
+
+<p align="center">
+  <img src="docs/figures/jaw_segmentation.gif" width="49%" alt="A segmented jaw scan rotating, one colour per tooth">
+  <img src="docs/figures/example_teeth.gif" width="49%" alt="Eight tooth types as rotating point clouds">
+</p>
+
+### Pipeline
+
+1. **Jaw scan → teeth.** Each scan comes with one label per vertex (0 = gum, otherwise the tooth's
+   [FDI number](https://en.wikipedia.org/wiki/FDI_World_Dental_Federation_notation)). Each tooth
+   keeps only the faces whose three vertices carry its label, then only its largest connected piece.
+2. **Tooth → point cloud.** 8,192 points are sampled uniformly over the tooth surface, then thinned
+   to 2,048 evenly spread points by farthest point sampling.
+3. **Normalise.** Centre on the centroid and scale so the farthest point is at distance 1.
+4. **Save.** `teeth_dataset.h5` (`points`: N × 2048 × 3, float32), `metadata.csv` (one row per
+   tooth: patient, jaw, FDI number, tooth type, mesh size, bounding box) and `dataset_info.json`.
+
+Scans are processed in parallel on every CPU core, and each scan's sampling is seeded from its
+name, so the output is identical whatever the number of workers. A scan that fails is skipped and
+listed in `dataset_info.json`. On 300 scans (20 cores) the build takes under two minutes and gives
+4,038 teeth.
+
+### Dataset
+
+[Teeth3DS+](https://osf.io/xctdy/) (Ben-Hamadou et al., 2022): clinically acquired intra-oral
+scans with per-vertex tooth labels. This project uses `data_part_1`: 300 jaw scans (150 upper,
+150 lower) from 300 patients. Third molars are rare in it (7–11 of each, against 115–150 for
+every other position):
+
+<p align="center">
+  <img src="docs/figures/teeth_per_position.png" width="80%" alt="Bar chart of teeth per FDI position">
+</p>
+
+The data is distributed under its own licence, so it is **not included in this repository** and
+must not be committed. `data/` is ignored by Git, and a test fails if a notebook is saved with
+outputs (they would contain the data).
+
+### Running it
+
+1. Download `data_part_1` from the [Teeth3DS+ page](https://osf.io/xctdy/) and put its `upper/`
+   and `lower/` folders in `data/raw/teeth3ds/`.
+2. Open `notebooks/02_data_preparation.ipynb`, set `REBUILD = True` in section 1 and run all cells.
+   The notebook shows a segmented jaw, its teeth as point clouds, an overview of the dataset,
+   example teeth and the train/validation/test split.
+
+The output goes to `data/processed/complete/`. With processed data but no raw scans, the notebook
+skips the scan-to-teeth demo and runs the rest. Build locally rather than in Colab: Colab runtimes
+usually have only two CPU cores.
+
+From a Python script, guard the call (worker processes re-import the script on Windows):
+
+```python
+from pathlib import Path
+
+from dental_3d_vae.ml.preprocessing import build_complete_dataset
+
+if __name__ == "__main__":
+    build_complete_dataset(Path("data/raw/teeth3ds"), Path("data/processed/complete"))
+```
+
+### Code
+
+| File | Contents |
+|---|---|
+| `src/dental_3d_vae/ml/preprocessing.py` | `extract_teeth`, `farthest_point_sampling`, `normalise`, `build_complete_dataset` |
+| `src/dental_3d_vae/ml/data.py` | `stratified_split` (70/15/15 by tooth type), `CompleteToothDataset` (PyTorch, lazy HDF5) |
+| `src/dental_3d_vae/viz/pointclouds.py` | Interactive 3D jaw and point-cloud views; `save_rotating_gif` for figures |
+| `notebooks/02_data_preparation.ipynb` | The pipeline, step by step, with visualisations |
+
+To regenerate the figures above, set `SAVE_FIGURES = True` in the notebook (local only; needs
+`kaleido` and Chrome).
+
 ## Everyday workflow
 
 1. Edit code in VS Code and run the tests.
