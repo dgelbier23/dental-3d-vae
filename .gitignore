@@ -32,6 +32,12 @@ checkpoints/
 *.safetensors
 *.onnx
 
+# Local-only dissertation material
+# Report: unpublished until marked (delete this line to publish)
+reports/
+# Original executed notebook: its outputs embed Teeth3DS+ point clouds
+archive/
+
 # Local editor / OS files
 .vscode/
 .DS_Store
