@@ -1,6 +1,8 @@
 """Teeth3DS+ jaw scans -> normalised point clouds of individual teeth."""
 
 import json
+import zlib
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import h5py
@@ -76,45 +78,76 @@ def tooth_to_pointcloud(
     return normalise(farthest_point_sampling(surface, num_points)).astype(np.float32)
 
 
+def process_scan(
+    obj_path: Path, num_points: int, seed: int
+) -> tuple[list[np.ndarray], list[dict]]:
+    """Point clouds and metadata rows for every tooth in one jaw scan.
+
+    The scan is an ``.obj`` with a same-named Teeth3DS+ ``.json`` label file
+    beside it. Randomness is seeded from ``seed`` and the scan's name, so a scan
+    gives the same result whichever process runs it, and in whatever order.
+    """
+    scan = json.loads(obj_path.with_suffix(".json").read_text(encoding="utf-8"))
+    # process=False keeps the file's vertex order, which the labels refer to.
+    jaw = trimesh.load_mesh(obj_path, process=False)
+    # crc32 turns the name into a fixed number (Python's hash() differs per process).
+    rng = np.random.default_rng([seed, zlib.crc32(obj_path.stem.encode())])
+    clouds, rows = [], []
+    for tooth_id, tooth in extract_teeth(jaw, np.asarray(scan["labels"])).items():
+        clouds.append(tooth_to_pointcloud(tooth, num_points, rng))
+        bbox_x, bbox_y, bbox_z = tooth.extents
+        rows.append({
+            "patient_id": scan["id_patient"],
+            "scan_id": obj_path.stem,
+            "jaw": scan["jaw"],
+            "tooth_id": tooth_id,
+            "tooth_type": FDI_TOOTH_NAMES[tooth_id],
+            "num_vertices": len(tooth.vertices),
+            "num_faces": len(tooth.faces),
+            "bbox_x": bbox_x,
+            "bbox_y": bbox_y,
+            "bbox_z": bbox_z,
+        })
+    return clouds, rows
+
+
 def build_complete_dataset(
-    raw_dir: Path, out_dir: Path, num_points: int = 2048, seed: int = 42
+    raw_dir: Path,
+    out_dir: Path,
+    num_points: int = 2048,
+    seed: int = 42,
+    workers: int | None = None,
 ) -> pd.DataFrame:
     """Turn every jaw scan under ``raw_dir`` into tooth point clouds and save them.
 
-    Each scan is an ``.obj`` with a same-named Teeth3DS+ ``.json`` label file
-    beside it. Writes to ``out_dir``:
+    Scans run in parallel on ``workers`` processes (default: all CPU cores).
+    A scan that fails is skipped and reported, never written as empty data.
+    Writes to ``out_dir``:
 
     - ``teeth_dataset.h5``: ``points``, float32 (N, num_points, 3)
     - ``metadata.csv``: row i describes ``points[i]``
-    - ``dataset_info.json``: how the dataset was made
+    - ``dataset_info.json``: how the dataset was made, including failed scans
 
-    Scans are processed in name order and teeth in FDI order, so the output
-    depends only on the input files and ``seed``. Returns the metadata.
+    Scans are ordered by name and teeth by FDI number, so the output depends
+    only on the input files and ``seed``, not on ``workers``. Returns the metadata.
     """
-    rng = np.random.default_rng(seed)
-    clouds, rows = [], []
     scan_paths = sorted(Path(raw_dir).rglob("*.obj"), key=lambda path: path.stem)
-    for i, obj_path in enumerate(scan_paths, start=1):
-        scan = json.loads(obj_path.with_suffix(".json").read_text(encoding="utf-8"))
-        # process=False keeps the file's vertex order, which the labels refer to.
-        jaw = trimesh.load_mesh(obj_path, process=False)
-        for tooth_id, tooth in extract_teeth(jaw, np.asarray(scan["labels"])).items():
-            clouds.append(tooth_to_pointcloud(tooth, num_points, rng))
-            bbox_x, bbox_y, bbox_z = tooth.extents
-            rows.append({
-                "sample_id": len(rows),
-                "patient_id": scan["id_patient"],
-                "scan_id": obj_path.stem,
-                "jaw": scan["jaw"],
-                "tooth_id": tooth_id,
-                "tooth_type": FDI_TOOTH_NAMES[tooth_id],
-                "num_vertices": len(tooth.vertices),
-                "num_faces": len(tooth.faces),
-                "bbox_x": bbox_x,
-                "bbox_y": bbox_y,
-                "bbox_z": bbox_z,
-            })
-        print(f"[{i}/{len(scan_paths)}] {obj_path.stem}: {len(rows)} teeth so far")
+    clouds, rows, failed = [], [], {}
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        jobs = [pool.submit(process_scan, path, num_points, seed) for path in scan_paths]
+        # Collect in scan order (not finishing order) so sample_ids are stable.
+        for i, (obj_path, job) in enumerate(zip(scan_paths, jobs), start=1):
+            try:
+                scan_clouds, scan_rows = job.result()
+            except Exception as error:  # Any bad scan: record it and carry on.
+                failed[obj_path.stem] = f"{type(error).__name__}: {error}"
+                print(f"[{i}/{len(scan_paths)}] {obj_path.stem}: FAILED ({failed[obj_path.stem]})")
+                continue
+            clouds += scan_clouds
+            rows += [{"sample_id": len(rows) + k, **row} for k, row in enumerate(scan_rows)]
+            print(f"[{i}/{len(scan_paths)}] {obj_path.stem}: {len(rows)} teeth so far")
+    if failed:
+        print(f"{len(failed)} of {len(scan_paths)} scans failed; see dataset_info.json")
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -128,6 +161,7 @@ def build_complete_dataset(
         "sampling": f"uniform surface ({4 * num_points} points) + farthest point",
         "normalisation": "zero mean, unit sphere",
         "seed": seed,
+        "failed_scans": failed,
     }
     (out_dir / "dataset_info.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
     return metadata

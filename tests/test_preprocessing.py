@@ -71,24 +71,41 @@ def test_tooth_to_pointcloud_is_seeded() -> None:
     assert not np.array_equal(sample(0), sample(1))
 
 
-def test_build_complete_dataset_writes_aligned_points_and_metadata(tmp_path) -> None:
-    jaw, labels = _fake_jaw()
-    (tmp_path / "raw").mkdir()
-    jaw.export(tmp_path / "raw" / "P1_upper.obj")
-    (tmp_path / "raw" / "P1_upper.json").write_text(
-        json.dumps({"id_patient": "P1", "jaw": "upper", "labels": labels.tolist()})
+def _write_scan(raw_dir, patient: str, labels: list) -> None:
+    raw_dir.mkdir(exist_ok=True)
+    _fake_jaw()[0].export(raw_dir / f"{patient}_upper.obj")
+    (raw_dir / f"{patient}_upper.json").write_text(
+        json.dumps({"id_patient": patient, "jaw": "upper", "labels": labels})
     )
 
-    def build(name: str) -> pd.DataFrame:
-        return build_complete_dataset(tmp_path / "raw", tmp_path / name, num_points=32)
 
-    metadata = build("a")
-    build("b")
+def test_build_complete_dataset_is_aligned_and_independent_of_workers(tmp_path) -> None:
+    labels = _fake_jaw()[1].tolist()
+    _write_scan(tmp_path / "raw", "P2", labels)
+    _write_scan(tmp_path / "raw", "P1", labels)
 
-    assert metadata["tooth_id"].tolist() == [11, 21]
-    assert metadata["sample_id"].tolist() == [0, 1]
-    assert metadata["tooth_type"].tolist() == [FDI_TOOTH_NAMES[11], FDI_TOOTH_NAMES[21]]
-    with h5py.File(tmp_path / "a" / "teeth_dataset.h5") as a, h5py.File(tmp_path / "b" / "teeth_dataset.h5") as b:
-        assert a["points"].shape == (2, 32, 3)
-        np.testing.assert_array_equal(a["points"][:], b["points"][:])  # reproducible
-    assert pd.read_csv(tmp_path / "a" / "metadata.csv").equals(metadata)
+    def build(name: str, workers: int) -> pd.DataFrame:
+        return build_complete_dataset(tmp_path / "raw", tmp_path / name, num_points=32, workers=workers)
+
+    metadata = build("serial", workers=1)
+    build("parallel", workers=2)
+
+    assert metadata["scan_id"].tolist() == ["P1_upper"] * 2 + ["P2_upper"] * 2  # name order
+    assert metadata["tooth_id"].tolist() == [11, 21, 11, 21]
+    assert metadata["sample_id"].tolist() == [0, 1, 2, 3]
+    assert pd.read_csv(tmp_path / "serial" / "metadata.csv").equals(metadata)
+    with h5py.File(tmp_path / "serial" / "teeth_dataset.h5") as serial, \
+            h5py.File(tmp_path / "parallel" / "teeth_dataset.h5") as parallel:
+        assert serial["points"].shape == (4, 32, 3)
+        np.testing.assert_array_equal(serial["points"][:], parallel["points"][:])
+
+
+def test_build_complete_dataset_skips_and_reports_failed_scans(tmp_path) -> None:
+    _write_scan(tmp_path / "raw", "GOOD", _fake_jaw()[1].tolist())
+    _write_scan(tmp_path / "raw", "BAD", [11, 21])  # Too few labels for the mesh.
+
+    metadata = build_complete_dataset(tmp_path / "raw", tmp_path / "out", num_points=32)
+
+    assert metadata["scan_id"].unique().tolist() == ["GOOD_upper"]
+    info = json.loads((tmp_path / "out" / "dataset_info.json").read_text())
+    assert list(info["failed_scans"]) == ["BAD_upper"]
