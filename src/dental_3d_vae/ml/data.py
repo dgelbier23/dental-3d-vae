@@ -1,7 +1,62 @@
 """Datasets and data loaders."""
 
+from pathlib import Path
+
+import h5py
+import pandas as pd
 import torch
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, TensorDataset, random_split
+
+
+def stratified_split(
+    metadata: pd.DataFrame, val_fraction: float = 0.15, test_fraction: float = 0.15, seed: int = 42
+) -> pd.DataFrame:
+    """Return ``metadata`` with a ``split`` column ("train"/"val"/"test").
+
+    Each split keeps the overall mix of ``tooth_type``. With the defaults this
+    reproduces the dissertation's split exactly.
+    """
+    train, rest = train_test_split(
+        metadata, test_size=val_fraction + test_fraction,
+        stratify=metadata["tooth_type"], random_state=seed,
+    )
+    val, test = train_test_split(
+        rest, test_size=test_fraction / (val_fraction + test_fraction),
+        stratify=rest["tooth_type"], random_state=seed,
+    )
+    split = pd.Series("train", index=metadata.index)
+    split[val.index] = "val"
+    split[test.index] = "test"
+    return metadata.assign(split=split)
+
+
+class CompleteToothDataset(Dataset):
+    """Complete tooth point clouds for the rows of ``metadata``.
+
+    Items are ``{"complete": (num_points, 3) float32, "sample_id", "tooth_id"}``.
+    The HDF5 file opens on first access, so each DataLoader worker gets its own
+    handle.
+    """
+
+    def __init__(self, h5_path: Path, metadata: pd.DataFrame) -> None:
+        self.h5_path = h5_path
+        self.metadata = metadata.reset_index(drop=True)
+        self.points = None
+
+    def __len__(self) -> int:
+        return len(self.metadata)
+
+    def __getitem__(self, index: int) -> dict:
+        if self.points is None:
+            self.points = h5py.File(self.h5_path, "r")["points"]
+        row = self.metadata.iloc[index]
+        sample_id = int(row["sample_id"])
+        return {
+            "complete": torch.from_numpy(self.points[sample_id]),
+            "sample_id": sample_id,
+            "tooth_id": int(row["tooth_id"]),
+        }
 
 
 def make_synthetic_classification(

@@ -1,6 +1,57 @@
+import h5py
+import numpy as np
+import pandas as pd
 import torch
 
-from dental_3d_vae.ml.data import make_dataloaders, make_synthetic_classification
+from dental_3d_vae.ml.data import (
+    CompleteToothDataset,
+    make_dataloaders,
+    make_synthetic_classification,
+    stratified_split,
+)
+
+
+# --- stratified_split / CompleteToothDataset --------------------------------------
+
+
+def _metadata(n_per_type: int = 20) -> pd.DataFrame:
+    tooth_types = ["incisor", "canine", "molar"] * n_per_type
+    return pd.DataFrame({
+        "sample_id": range(len(tooth_types)),
+        "tooth_id": [11, 13, 16] * n_per_type,
+        "tooth_type": tooth_types,
+    })
+
+
+def test_stratified_split_sizes_and_balance() -> None:
+    split = stratified_split(_metadata())
+
+    assert split["split"].value_counts().to_dict() == {"train": 42, "val": 9, "test": 9}
+    per_type = split.groupby("tooth_type")["split"].value_counts().unstack()
+    assert (per_type["train"] == 14).all() and (per_type["test"] == 3).all()
+
+
+def test_stratified_split_is_reproducible() -> None:
+    def test_ids(seed: int) -> list[int]:
+        split = stratified_split(_metadata(), seed=seed)
+        return split.loc[split["split"] == "test", "sample_id"].tolist()
+
+    assert test_ids(1) == test_ids(1)
+    assert test_ids(1) != test_ids(2)
+
+
+def test_complete_tooth_dataset_reads_rows_by_sample_id(tmp_path) -> None:
+    points = np.random.default_rng(0).random((5, 8, 3), dtype=np.float32)
+    with h5py.File(tmp_path / "teeth.h5", "w") as f:
+        f.create_dataset("points", data=points)
+    subset = _metadata(2).iloc[[4, 1]]  # out of order, like a split
+
+    dataset = CompleteToothDataset(tmp_path / "teeth.h5", subset)
+
+    assert len(dataset) == 2
+    item = dataset[0]
+    assert item["sample_id"] == 4 and item["tooth_id"] == 13
+    assert torch.equal(item["complete"], torch.from_numpy(points[4]))
 
 
 def _dataset(seed: int = 0, n_samples: int = 200, num_classes: int = 3):

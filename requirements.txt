@@ -3,8 +3,12 @@
 # exercise the same PyTorch API that Colab runs. Re-check after Colab updates
 # (notebooks/01_gpu_check.ipynb prints the Colab version).
 # Do NOT install this file in Colab: it would replace Colab's CUDA build.
+h5py
 numpy
+pandas
+scikit-learn
 torch==2.11.0
+trimesh>=4  # mesh loading/sampling; the only one not preinstalled in Colab.
 pytest
 jupyter
 plotly  # dental_3d_vae.viz.plotting and notebooks; preinstalled in Colab.
