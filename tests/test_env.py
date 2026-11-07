@@ -27,15 +27,33 @@ def test_runs_dir_locally_is_under_artifacts(
     assert runs_dir.is_dir()
 
 
-def test_runs_dir_in_colab_mounts_drive_and_uses_subdir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _fake_colab(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Pretend to be in Colab with Drive at tmp_path/MyDrive; returns mount calls."""
     mounted: list[str] = []
     colab = types.ModuleType("google.colab")
     colab.drive = types.SimpleNamespace(mount=mounted.append)
     monkeypatch.setitem(sys.modules, "google", types.ModuleType("google"))
     monkeypatch.setitem(sys.modules, "google.colab", colab)
     monkeypatch.setattr(env, "DRIVE_ROOT", tmp_path / "MyDrive")
+    return mounted
+
+
+def test_data_dir_locally_and_in_colab(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(env, "REPO_ROOT", tmp_path / "my-project")
+    assert env.get_data_dir() == tmp_path / "my-project" / "data"
+
+    mounted = _fake_colab(tmp_path, monkeypatch)
+    data_dir = env.get_data_dir()
+
+    assert mounted == [str(tmp_path)]
+    assert data_dir == tmp_path / "MyDrive" / "my-project" / "data"
+    assert data_dir.is_dir()
+
+
+def test_runs_dir_in_colab_mounts_drive_and_uses_subdir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mounted = _fake_colab(tmp_path, monkeypatch)
 
     runs_dir = env.get_runs_dir("experiments/custom")
 

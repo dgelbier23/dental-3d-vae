@@ -19,3 +19,14 @@ def test_every_notebook_bootstraps_this_repo() -> None:
     assert len(bootstraps) == 1
     repo = re.search(r'REPO = "(.+?)"', bootstraps.pop()).group(1)
     assert origin.removesuffix(".git").endswith(repo)
+
+
+def test_notebooks_have_no_outputs() -> None:
+    # Outputs can contain Teeth3DS+ data, which must not be published.
+    # Fix: VS Code "Clear All Outputs", then save.
+    with_outputs = [
+        path.name
+        for path in (ROOT / "notebooks").glob("*.ipynb")
+        if any(c.get("outputs") for c in json.loads(path.read_text(encoding="utf-8"))["cells"])
+    ]
+    assert with_outputs == []

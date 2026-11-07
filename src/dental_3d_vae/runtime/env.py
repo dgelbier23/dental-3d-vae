@@ -38,6 +38,28 @@ def describe_environment() -> dict[str, str | bool | None]:
     }
 
 
+def _mount_drive() -> None:
+    from google.colab import drive
+
+    drive.mount(str(DRIVE_ROOT.parent))
+
+
+def get_data_dir() -> Path:
+    """Folder for datasets, created if missing.
+
+    In Colab: mounts Google Drive and returns ``MyDrive/<repo name>/data``, so data
+    is uploaded once rather than every session. Locally: ``<repo>/data`` (ignored
+    by Git; Teeth3DS+ data must never be committed).
+    """
+    if in_colab():
+        _mount_drive()
+        data_dir = DRIVE_ROOT / REPO_ROOT.name / "data"
+    else:
+        data_dir = REPO_ROOT / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir
+
+
 def get_runs_dir(drive_subdir: str | None = None) -> Path:
     """Folder for run outputs, created if missing.
 
@@ -46,9 +68,7 @@ def get_runs_dir(drive_subdir: str | None = None) -> Path:
     project. Locally: ``<repo>/artifacts/runs`` (ignored by Git).
     """
     if in_colab():
-        from google.colab import drive
-
-        drive.mount(str(DRIVE_ROOT.parent))
+        _mount_drive()
         runs_dir = DRIVE_ROOT / (drive_subdir or f"{REPO_ROOT.name}/runs")
     else:
         runs_dir = REPO_ROOT / "artifacts" / "runs"
