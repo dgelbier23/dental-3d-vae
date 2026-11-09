@@ -8,6 +8,8 @@ import torch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, TensorDataset, random_split
 
+from dental_3d_vae.ml.partial import complete_fingerprint, upsample
+
 
 def stratified_split(
     metadata: pd.DataFrame, val_fraction: float = 0.15, test_fraction: float = 0.15, seed: int = 42
@@ -56,6 +58,48 @@ class CompleteToothDataset(Dataset):
             "complete": torch.from_numpy(self.points[sample_id]),
             "sample_id": sample_id,
             "tooth_id": int(row["tooth_id"]),
+        }
+
+
+class PartialToothDataset(Dataset):
+    """Partial teeth with their complete originals, for the rows of partial ``metadata``.
+
+    Items: ``partial`` (num_points, 3): the observed points, then upsampled points;
+    ``complete`` (num_points, 3); ``removed`` (num_points,) bool, True where
+    ``complete`` lost a point; plus ``partial_id``, ``source_sample_id``,
+    ``tooth_id``, ``method`` and ``missing_fraction``. Every item has the same
+    shapes, so the default DataLoader batching works. HDF5 files open on first
+    access, so each DataLoader worker gets its own handles.
+    """
+
+    def __init__(self, complete_h5: Path, masks_h5: Path, metadata: pd.DataFrame) -> None:
+        with h5py.File(complete_h5, "r") as complete, h5py.File(masks_h5, "r") as masks:
+            if masks.attrs["complete_fingerprint"] != complete_fingerprint(complete["points"]):
+                raise ValueError(f"{masks_h5} was built from a different complete dataset than {complete_h5}.")
+        self.complete_h5, self.masks_h5 = complete_h5, masks_h5
+        self.metadata = metadata.reset_index(drop=True)
+        self.complete = self.removed = None
+
+    def __len__(self) -> int:
+        return len(self.metadata)
+
+    def __getitem__(self, index: int) -> dict:
+        if self.complete is None:
+            self.complete = h5py.File(self.complete_h5, "r")["points"]
+            self.removed = h5py.File(self.masks_h5, "r")["removed"]
+        row = self.metadata.iloc[index]
+        partial_id = int(row["partial_id"])
+        complete = self.complete[int(row["source_sample_id"])]
+        removed = self.removed[partial_id]
+        return {
+            "partial": torch.from_numpy(upsample(complete[~removed], len(complete), seed=partial_id)),
+            "complete": torch.from_numpy(complete),
+            "removed": torch.from_numpy(removed),
+            "partial_id": partial_id,
+            "source_sample_id": int(row["source_sample_id"]),
+            "tooth_id": int(row["tooth_id"]),
+            "method": row["method"],
+            "missing_fraction": float(row["missing_fraction"]),
         }
 
 

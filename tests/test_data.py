@@ -1,14 +1,18 @@
 import h5py
 import numpy as np
 import pandas as pd
+import pytest
 import torch
+from torch.utils.data import DataLoader
 
 from dental_3d_vae.ml.data import (
     CompleteToothDataset,
+    PartialToothDataset,
     make_dataloaders,
     make_synthetic_classification,
     stratified_split,
 )
+from dental_3d_vae.ml.partial import build_partial_dataset
 
 
 # --- stratified_split / CompleteToothDataset --------------------------------------
@@ -52,6 +56,40 @@ def test_complete_tooth_dataset_reads_rows_by_sample_id(tmp_path) -> None:
     item = dataset[0]
     assert item["sample_id"] == 4 and item["tooth_id"] == 13
     assert torch.equal(item["complete"], torch.from_numpy(points[4]))
+
+
+def _complete_and_partials(tmp_path, seed: int = 0):
+    complete = tmp_path / f"complete{seed}"
+    complete.mkdir()
+    points = np.random.default_rng(seed).random((6, 32, 3), dtype=np.float32)
+    with h5py.File(complete / "teeth_dataset.h5", "w") as f:
+        f.create_dataset("points", data=points)
+    _metadata(2).to_csv(complete / "metadata.csv", index=False)
+    partials = build_partial_dataset(complete, tmp_path / f"partial{seed}")
+    return complete / "teeth_dataset.h5", tmp_path / f"partial{seed}" / "partial_masks.h5", partials
+
+
+def test_partial_tooth_dataset_items_and_batching(tmp_path) -> None:
+    complete_h5, masks_h5, partials = _complete_and_partials(tmp_path)
+    subset = partials[partials["missing_fraction"] == 0.45]
+
+    dataset = PartialToothDataset(complete_h5, masks_h5, subset)
+    item = dataset[1]
+
+    observed = item["complete"][~item["removed"]]
+    assert item["removed"].sum() == 14  # int(32 x 0.45)
+    assert torch.equal(item["partial"][: len(observed)], observed)  # observed points first
+    assert item["partial"].shape == item["complete"].shape == (32, 3)
+    batch = next(iter(DataLoader(dataset, batch_size=4)))  # default collate: fixed shapes
+    assert batch["partial"].shape == (4, 32, 3) and batch["removed"].shape == (4, 32)
+
+
+def test_partial_tooth_dataset_rejects_masks_from_another_complete_dataset(tmp_path) -> None:
+    complete_h5, _, partials = _complete_and_partials(tmp_path, seed=0)
+    _, other_masks_h5, _ = _complete_and_partials(tmp_path, seed=1)
+
+    with pytest.raises(ValueError, match="different complete dataset"):
+        PartialToothDataset(complete_h5, other_masks_h5, partials)
 
 
 def _dataset(seed: int = 0, n_samples: int = 200, num_classes: int = 3):

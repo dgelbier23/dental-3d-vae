@@ -14,6 +14,8 @@ from dental_3d_vae.viz.colours import LIFE_HISTORIES
 
 GUM_COLOUR = LIFE_HISTORIES[3]  # light sand
 TOOTH_COLOURS = LIFE_HISTORIES[:3] + LIFE_HISTORIES[4:]  # the other six, cycled
+KEPT_COLOUR = LIFE_HISTORIES[6]  # deep blue
+REMOVED_COLOUR = LIFE_HISTORIES[1]  # terracotta
 
 
 def _hide_axes(fig: go.Figure) -> None:
@@ -39,14 +41,22 @@ def plot_jaw(jaw: trimesh.Trimesh, labels: np.ndarray) -> go.Figure:
     return fig
 
 
-def plot_pointclouds(clouds: list, titles: list[str], cols: int = 4) -> go.Figure:
-    """One rotatable 3D panel per (N, 3) point cloud, shaded dark to light by height."""
-    cols = min(cols, len(clouds))
-    rows = -(-len(clouds) // cols)  # ceiling division
+def _panel_grid(titles: list[str], cols: int) -> tuple[go.Figure, int]:
+    """Empty grid of 3D panels, one per title; returns the figure and its column count."""
+    cols = min(cols, len(titles))
+    rows = -(-len(titles) // cols)  # ceiling division
     fig = make_subplots(
         rows=rows, cols=cols, specs=[[{"type": "scene"}] * cols] * rows,
         subplot_titles=titles, horizontal_spacing=0.01, vertical_spacing=0.04,
     )
+    _hide_axes(fig)
+    fig.update_layout(height=280 * rows, margin=dict(l=0, r=0, t=30, b=0))
+    return fig, cols
+
+
+def plot_pointclouds(clouds: list, titles: list[str], cols: int = 4) -> go.Figure:
+    """One rotatable 3D panel per (N, 3) point cloud, shaded dark to light by height."""
+    fig, cols = _panel_grid(titles, cols)
     for n, cloud in enumerate(clouds):
         x, y, z = np.asarray(cloud).T
         fig.add_trace(
@@ -56,8 +66,24 @@ def plot_pointclouds(clouds: list, titles: list[str], cols: int = 4) -> go.Figur
             ),
             row=n // cols + 1, col=n % cols + 1,
         )
-    _hide_axes(fig)
-    fig.update_layout(height=280 * rows, margin=dict(l=0, r=0, t=30, b=0))
+    return fig
+
+
+def plot_partials(clouds: list, removed_masks: list, titles: list[str], cols: int = 3) -> go.Figure:
+    """One 3D panel per complete (N, 3) cloud: kept points in blue, removed in terracotta."""
+    fig, cols = _panel_grid(titles, cols)
+    for n, (cloud, removed) in enumerate(zip(clouds, removed_masks)):
+        cloud, removed = np.asarray(cloud), np.asarray(removed)
+        for name, mask, colour in (("Kept", ~removed, KEPT_COLOUR), ("Removed", removed, REMOVED_COLOUR)):
+            x, y, z = cloud[mask].T
+            fig.add_trace(
+                go.Scatter3d(
+                    x=x, y=y, z=z, mode="markers", hoverinfo="skip", name=name,
+                    legendgroup=name, showlegend=n == 0, marker=dict(size=1.5, color=colour),
+                ),
+                row=n // cols + 1, col=n % cols + 1,
+            )
+    fig.update_layout(legend=dict(itemsizing="constant"))  # Legend dots readable, not 1.5 px.
     return fig
 
 
