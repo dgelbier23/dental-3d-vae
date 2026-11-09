@@ -20,13 +20,15 @@ def edge_features(x: torch.Tensor, k: int) -> torch.Tensor:
     """For every point and each of its k nearest neighbours, ``[neighbour - point, point]``.
 
     x (B, C, N) -> (B, 2C, N, k): the difference describes the local shape around the
-    point; the point itself keeps its absolute position or feature.
+    point; the point itself keeps its absolute position or feature. Returned contiguous,
+    as in the dissertation: the memory layout sets BatchNorm's summation order in
+    training, so this keeps training bit-identical to the original code.
     """
     points = x.transpose(2, 1)  # (B, N, C)
     batch = torch.arange(len(x), device=x.device).view(-1, 1, 1)
     neighbours = points[batch, knn(x, k)]  # (B, N, k, C)
     centre = points.unsqueeze(2).expand_as(neighbours)
-    return torch.cat((neighbours - centre, centre), dim=3).permute(0, 3, 1, 2)
+    return torch.cat((neighbours - centre, centre), dim=3).permute(0, 3, 1, 2).contiguous()
 
 
 def _edge_conv(in_features: int, out_features: int) -> nn.Sequential:
