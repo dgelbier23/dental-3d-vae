@@ -1,9 +1,31 @@
 import pytest
 import torch
 
+from dental_3d_vae.ml.models.dgcnn import edge_features, knn
 from dental_3d_vae.ml.models.vae import DECODERS, ENCODERS, build_vae, load_checkpoint
 
 POINTS = torch.randn(4, 256, 3)
+
+
+def test_knn_matches_brute_force_and_includes_the_point_itself() -> None:
+    x = torch.randn(2, 5, 40)  # (B, C, N): 40 points with 5 features
+
+    idx = knn(x, k=6)
+
+    brute = torch.cdist(x.transpose(1, 2), x.transpose(1, 2)).argsort(dim=-1)[..., :6]
+    assert torch.equal(idx.sort(dim=-1).values, brute.sort(dim=-1).values)
+    assert (idx[..., 0] == torch.arange(40)).all()  # nearest is itself
+
+
+def test_edge_features_are_neighbour_minus_point_then_point() -> None:
+    x = torch.randn(2, 3, 30)
+
+    features = edge_features(x, k=4)  # (B, 2C, N, k)
+
+    assert features.shape == (2, 6, 30, 4)
+    point = x[:, :, :, None].expand(-1, -1, -1, 4)
+    assert torch.equal(features[:, 3:], point)
+    assert torch.equal(features[:, :3, :, 0], torch.zeros(2, 3, 30))  # neighbour 0 is the point
 
 
 @pytest.mark.parametrize("encoder", sorted(ENCODERS))
