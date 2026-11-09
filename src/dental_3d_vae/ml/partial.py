@@ -40,6 +40,25 @@ def connected_patch(points: np.ndarray, missing_fraction: float, rng: np.random.
 REMOVAL_METHODS = {"plane": plane_cut, "connected_patch": connected_patch}
 
 
+def partial_rng(seed: int, sample_id: int, method: str, missing_fraction: float) -> np.random.Generator:
+    """The random generator for one partial; it depends only on these four values."""
+    method_index = list(REMOVAL_METHODS).index(method)
+    return np.random.default_rng([seed, sample_id, method_index, round(missing_fraction * 1000)])
+
+
+def cutting_plane(points: np.ndarray, removed: np.ndarray, rng: np.random.Generator) -> tuple[np.ndarray, float]:
+    """The plane a ``plane_cut`` made: unit ``normal`` and ``offset``, with removed
+    points on the side where ``points @ normal > offset``.
+
+    ``rng`` must start in the same state as the one given to ``plane_cut``
+    (e.g. a fresh ``partial_rng``); ``removed`` must contain at least one point.
+    """
+    normal = rng.normal(size=3)
+    normal /= np.linalg.norm(normal)
+    height = points @ normal
+    return normal, float(height[removed].min() + height[~removed].max()) / 2
+
+
 def upsample(points: np.ndarray, num_points: int, seed: int) -> np.ndarray:
     """Pad a partial cloud to ``num_points`` using only its own geometry.
 
@@ -78,8 +97,9 @@ def build_partial_dataset(
     - ``partial_metadata.csv``: row i describes partial i
     - ``partial_dataset_info.json``: how the partials were made
 
-    Each partial is seeded from (``seed``, tooth, method, fraction), so it never
-    depends on which other partials are built. Returns the metadata.
+    Each partial is seeded by ``partial_rng`` from (``seed``, tooth, method,
+    fraction), so it never depends on which other partials are built. Returns the
+    metadata.
     """
     complete_dir, out_dir = Path(complete_dir), Path(out_dir)
     teeth = pd.read_csv(complete_dir / "metadata.csv")
@@ -90,8 +110,8 @@ def build_partial_dataset(
     for tooth, points in zip(teeth.itertuples(), complete):
         for method in methods:
             for fraction in missing_fractions:
-                key = [seed, tooth.sample_id, list(REMOVAL_METHODS).index(method), round(fraction * 1000)]
-                masks.append(REMOVAL_METHODS[method](points, fraction, np.random.default_rng(key)))
+                rng = partial_rng(seed, tooth.sample_id, method, fraction)
+                masks.append(REMOVAL_METHODS[method](points, fraction, rng))
                 rows.append({
                     "partial_id": len(rows),
                     "source_sample_id": tooth.sample_id,

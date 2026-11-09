@@ -8,6 +8,8 @@ import pytest
 from dental_3d_vae.ml.partial import (
     build_partial_dataset,
     connected_patch,
+    cutting_plane,
+    partial_rng,
     plane_cut,
     upsample,
 )
@@ -76,6 +78,22 @@ def test_build_partial_dataset_layout(tmp_path) -> None:
         np.testing.assert_array_equal(f["removed"][:].sum(axis=1), metadata["num_removed"])
     info = json.loads((tmp_path / "partial" / "partial_dataset_info.json").read_text())
     assert info["complete_dataset"] == "complete" and info["num_partials"] == 24
+
+
+def test_cutting_plane_recovers_the_plane_of_a_built_partial(tmp_path) -> None:
+    _complete_dataset(tmp_path / "complete")
+    metadata = build_partial_dataset(tmp_path / "complete", tmp_path / "partial", seed=7)
+    row = metadata[(metadata["method"] == "plane") & (metadata["missing_fraction"] == 0.3)].iloc[1]
+    with h5py.File(tmp_path / "complete" / "teeth_dataset.h5") as c, \
+            h5py.File(tmp_path / "partial" / "partial_masks.h5") as m:
+        points, removed = c["points"][row["source_sample_id"]], m["removed"][row["partial_id"]]
+
+    rng = partial_rng(7, row["source_sample_id"], "plane", 0.3)  # Same generator as the build.
+    normal, offset = cutting_plane(points, removed, rng)
+
+    height = points @ normal
+    assert np.isclose(np.linalg.norm(normal), 1)
+    assert (height[removed] > offset).all() and (height[~removed] < offset).all()
 
 
 def test_each_partial_is_independent_of_what_else_is_built(tmp_path) -> None:

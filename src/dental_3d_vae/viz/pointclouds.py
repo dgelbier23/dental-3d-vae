@@ -14,8 +14,11 @@ from dental_3d_vae.viz.colours import LIFE_HISTORIES
 
 GUM_COLOUR = LIFE_HISTORIES[3]  # light sand
 TOOTH_COLOURS = LIFE_HISTORIES[:3] + LIFE_HISTORIES[4:]  # the other six, cycled
-KEPT_COLOUR = LIFE_HISTORIES[6]  # deep blue
-REMOVED_COLOUR = LIFE_HISTORIES[1]  # terracotta
+# The palette's most distinct pair (largest CIEDE2000 difference, 2.8:1 lightness contrast):
+# dark brown makes the removed region stand out against white; teal recedes.
+KEPT_COLOUR = LIFE_HISTORIES[5]  # teal
+REMOVED_COLOUR = LIFE_HISTORIES[0]  # dark brown
+PLANE_COLOUR = LIFE_HISTORIES[3]  # light sand, drawn translucent
 
 
 def _hide_axes(fig: go.Figure) -> None:
@@ -69,20 +72,51 @@ def plot_pointclouds(clouds: list, titles: list[str], cols: int = 4) -> go.Figur
     return fig
 
 
-def plot_partials(clouds: list, removed_masks: list, titles: list[str], cols: int = 3) -> go.Figure:
-    """One 3D panel per complete (N, 3) cloud: kept points in blue, removed in terracotta."""
+def _plane_square(cloud: np.ndarray, normal: np.ndarray, offset: float) -> go.Mesh3d:
+    """Square patch of the plane ``points @ normal == offset``, centred on the cloud
+    and as wide as the cloud."""
+    centroid = cloud.mean(axis=0)
+    centre = centroid - (centroid @ normal - offset) * normal  # Nearest plane point.
+    helper = np.eye(3)[np.argmin(np.abs(normal))]  # Any axis not parallel to the normal.
+    u = np.cross(normal, helper)
+    u /= np.linalg.norm(u)
+    v = np.cross(normal, u)
+    half = np.linalg.norm(cloud - centroid, axis=1).max()
+    x, y, z = np.array([centre + half * (su * u + sv * v) for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1))]).T
+    return go.Mesh3d(x=x, y=y, z=z, i=[0, 0], j=[1, 2], k=[2, 3], color=PLANE_COLOUR,
+                     opacity=0.5, hoverinfo="skip", name="Cutting plane")
+
+
+def plot_partials(
+    clouds: list, removed_masks: list, titles: list[str], planes: list | None = None, cols: int = 3
+) -> go.Figure:
+    """One 3D panel per complete (N, 3) cloud: kept points in teal, removed in dark brown.
+
+    ``planes`` optionally gives each panel's cutting plane as ``(normal, offset)``,
+    or None for no plane, and draws it as a translucent square.
+    """
     fig, cols = _panel_grid(titles, cols)
-    for n, (cloud, removed) in enumerate(zip(clouds, removed_masks)):
+    planes = planes or [None] * len(clouds)
+    for n, (cloud, removed, plane) in enumerate(zip(clouds, removed_masks, planes)):
         cloud, removed = np.asarray(cloud), np.asarray(removed)
-        for name, mask, colour in (("Kept", ~removed, KEPT_COLOUR), ("Removed", removed, REMOVED_COLOUR)):
-            x, y, z = cloud[mask].T
-            fig.add_trace(
-                go.Scatter3d(
-                    x=x, y=y, z=z, mode="markers", hoverinfo="skip", name=name,
-                    legendgroup=name, showlegend=n == 0, marker=dict(size=1.5, color=colour),
-                ),
-                row=n // cols + 1, col=n % cols + 1,
+        traces = [
+            go.Scatter3d(
+                x=cloud[mask, 0], y=cloud[mask, 1], z=cloud[mask, 2], mode="markers",
+                hoverinfo="skip", name=name, marker=dict(size=1.5, color=colour),
             )
+            for name, mask, colour in (("Kept", ~removed, KEPT_COLOUR), ("Removed", removed, REMOVED_COLOUR))
+        ]
+        if plane is not None:
+            traces.append(_plane_square(cloud, *plane))
+        for trace in traces:
+            first = not any(t.name == trace.name for t in fig.data)
+            trace.update(legendgroup=trace.name, showlegend=first)  # One legend entry per kind.
+            fig.add_trace(trace, row=n // cols + 1, col=n % cols + 1)
+    # The same box around every (centred) cloud: equal scale in every panel, and
+    # planes are clipped to the box instead of stretching it.
+    reach = max(float(np.abs(np.asarray(cloud)).max()) for cloud in clouds)
+    box = dict(range=[-reach, reach])
+    fig.update_scenes(xaxis=box, yaxis=box, zaxis=box, aspectmode="cube")
     fig.update_layout(legend=dict(itemsizing="constant"))  # Legend dots readable, not 1.5 px.
     return fig
 

@@ -36,16 +36,20 @@ def test_plot_pointclouds_one_true_proportion_panel_per_cloud() -> None:
     assert fig.layout.scene.aspectmode == "data" and fig.layout.scene5.aspectmode == "data"
 
 
-def test_plot_partials_shows_kept_and_removed_points_with_one_legend() -> None:
-    cloud = np.random.default_rng(0).random((10, 3))
+def test_plot_partials_kept_removed_and_optional_plane() -> None:
+    cloud = np.random.default_rng(0).random((10, 3)) - 0.5
     removed = np.arange(10) < 3
+    plane = (np.array([0.0, 0.0, 1.0]), 0.1)
 
-    fig = plot_partials([cloud, cloud], [removed, removed], titles=["a", "b"])
+    fig = plot_partials([cloud, cloud], [removed, removed], titles=["a", "b"], planes=[None, plane])
 
-    kept, gone = fig.data[0], fig.data[1]
+    assert [t.name for t in fig.data] == ["Kept", "Removed", "Kept", "Removed", "Cutting plane"]
+    assert [t.showlegend for t in fig.data] == [True, True, False, False, True]  # One entry each.
+    kept, gone, plane_trace = fig.data[0], fig.data[1], fig.data[4]
     assert (len(kept.x), len(gone.x)) == (7, 3)
     assert (kept.marker.color, gone.marker.color) == (KEPT_COLOUR, REMOVED_COLOUR)
-    assert [trace.showlegend for trace in fig.data] == [True, True, False, False]
+    np.testing.assert_allclose(plane_trace.z, 0.1)  # Square lies in the plane z = 0.1.
+    assert fig.layout.scene.xaxis.range == fig.layout.scene2.zaxis.range  # Same box everywhere.
 
 
 def test_save_rotating_gif_writes_one_frame_per_angle_and_leaves_figure_unchanged(tmp_path) -> None:
