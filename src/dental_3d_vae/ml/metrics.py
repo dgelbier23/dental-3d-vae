@@ -21,7 +21,8 @@ def chamfer_distance(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
     Its batch mean is the dissertation's training loss.
     """
-    return nearest_distance(a, b).mean(dim=-1) + nearest_distance(b, a).mean(dim=-1)
+    distances = torch.cdist(a, b)  # One (B, N, M) matrix serves both directions.
+    return distances.min(dim=2).values.mean(dim=-1) + distances.min(dim=1).values.mean(dim=-1)
 
 
 def _region_error(reconstruction: torch.Tensor, complete: torch.Tensor, region: torch.Tensor) -> torch.Tensor:

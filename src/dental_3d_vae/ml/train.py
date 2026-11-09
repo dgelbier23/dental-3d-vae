@@ -28,8 +28,9 @@ def kl_divergence(mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
     return -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).mean()
 
 
-def _batch(batch: dict, config: ExperimentConfig, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
-    """(model input, complete target) on ``device``."""
+def model_input_and_target(batch: dict, config: ExperimentConfig,
+                           device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
+    """A batch's (model input, complete target) on ``device``: the input is partial or complete per config."""
     model_input = batch["partial" if config.reconstruction_mode == "partial" else "complete"]
     return model_input.to(device, non_blocking=True), batch["complete"].to(device, non_blocking=True)
 
@@ -40,7 +41,7 @@ def train_one_epoch(model: VAE, loader: DataLoader, optimizer: torch.optim.Optim
     model.train()
     totals = defaultdict(float)
     for batch in loader:
-        model_input, complete = _batch(batch, config, device)
+        model_input, complete = model_input_and_target(batch, config, device)
         optimizer.zero_grad(set_to_none=True)
         reconstruction, mu, logvar = model(model_input)
         terms = {
@@ -63,7 +64,7 @@ def validate(model: VAE, loader: DataLoader, config: ExperimentConfig, device: t
     model.eval()
     chamfer = kl = 0.0
     for batch in loader:
-        model_input, complete = _batch(batch, config, device)
+        model_input, complete = model_input_and_target(batch, config, device)
         mu, logvar = model.encoder(model_input)
         chamfer += chamfer_distance(model.decoder(mu), complete).mean().item()
         kl += kl_divergence(mu, logvar).item()

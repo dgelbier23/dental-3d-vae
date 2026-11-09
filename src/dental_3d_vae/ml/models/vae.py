@@ -29,9 +29,14 @@ class VAE(nn.Module):
         self.decoder = decoder
 
     @staticmethod
-    def reparameterize(mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
-        """Sample z = mu + sigma * noise, keeping gradients flowing to mu and logvar."""
-        return mu + torch.exp(0.5 * logvar) * torch.randn_like(mu)
+    def reparameterize(mu: torch.Tensor, logvar: torch.Tensor,
+                       generator: torch.Generator | None = None) -> torch.Tensor:
+        """Sample z = mu + sigma * noise, keeping gradients flowing to mu and logvar.
+
+        The noise comes from ``generator``, or from the global random state if None.
+        """
+        noise = torch.randn(mu.shape, generator=generator, dtype=mu.dtype, device=mu.device)
+        return mu + torch.exp(0.5 * logvar) * noise
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Training pass: ``(reconstruction, mu, logvar)``, decoding a sampled z."""
