@@ -1,6 +1,7 @@
 import pytest
 import torch
 
+from dental_3d_vae.ml.models.decoders import AtlasNetDecoder, FoldingNetDecoder
 from dental_3d_vae.ml.models.dgcnn import edge_features, knn
 from dental_3d_vae.ml.models.vae import DECODERS, ENCODERS, build_vae, load_checkpoint
 
@@ -37,6 +38,15 @@ def test_every_encoder_decoder_pair_has_the_right_shapes(encoder: str, decoder: 
 
     assert reconstruction.shape == (4, 128, 3)
     assert mu.shape == logvar.shape == (4, 8)
+
+
+def test_decoder_grids_have_the_layout_stored_in_checkpoints() -> None:
+    folding = FoldingNetDecoder(num_points=2048).grid
+    atlas = AtlasNetDecoder(num_points=2048).uv_grid
+
+    assert folding.shape == (2048, 2) and len(folding[:2025].unique(dim=0)) == 2025  # 45 x 45
+    assert torch.equal(folding[2025:], folding[:23])  # padded by repeating the first points
+    assert atlas.shape == (512, 2) and torch.equal(atlas[23], torch.tensor([1 / 22, 0.0]))  # 23 per row
 
 
 def test_reconstruct_uses_mu_unless_sampling() -> None:

@@ -5,13 +5,13 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from dental_3d_vae.ml.models.decoders import MLPDecoder
+from dental_3d_vae.ml.models.decoders import AtlasNetDecoder, FoldingNetDecoder, MLPDecoder
 from dental_3d_vae.ml.models.dgcnn import DGCNNEncoder
 from dental_3d_vae.ml.models.pointnet import PointNetEncoder
 
 # Names as stored in experiment configs and the dissertation checkpoints.
 ENCODERS = {"simple_pointnet": PointNetEncoder, "dgcnnv2": DGCNNEncoder}
-DECODERS = {"mlp": MLPDecoder}
+DECODERS = {"mlp": MLPDecoder, "foldingnet": FoldingNetDecoder, "atlasnet": AtlasNetDecoder}
 
 
 class VAE(nn.Module):
