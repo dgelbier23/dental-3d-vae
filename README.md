@@ -176,6 +176,33 @@ does, and a test keeps the encoder deterministic.
 | `src/dental_3d_vae/ml/models/dgcnn.py` | DGCNN encoder |
 | `src/dental_3d_vae/ml/models/decoders.py` | MLP, FoldingNet and AtlasNet decoders |
 
+## Metrics
+
+No single number captures how well a tooth was completed, so each reconstruction is scored four
+ways, one value per tooth:
+
+| Metric | Question it answers | Definition |
+|---|---|---|
+| Chamfer distance (CD) | How close is the whole reconstruction to the complete tooth? | Mean distance from each point to its nearest point in the other cloud, in both directions, summed |
+| Missing-region error (MRRE) | Was the removed part recovered? | Mean squared distance from each *removed* point of the complete tooth to the reconstruction |
+| Observed-region error (ORPE) | Was the part the model could see kept intact? | The same, over the *observed* points |
+| Stochastic consistency error (SCE) | Do repeated samples from the latent distribution agree? | Mean CD over all pairs of K sampled reconstructions of the same input (K = 10) |
+
+MRRE is undefined (NaN) when nothing was removed, so 0%-missing inputs are left out of its
+averages. CD uses plain distances and MRRE and ORPE squared ones, as in the dissertation, so
+their values are not on the same scale: compare each metric across models, not metrics with each
+other. SCE measures *consistency*, not accuracy: a model can agree with itself and still be
+wrong, which is why it is reported alongside CD.
+
+The implementations reproduce the per-tooth CD and MRRE stored in the dissertation checkpoints.
+One change: ORPE is now measured on the observed points themselves, as the metric is defined,
+rather than on the model's upsampled input, which also contains interpolated points (mean ORPE
+changes by under 0.4%).
+
+| File | Contents |
+|---|---|
+| `src/dental_3d_vae/ml/metrics.py` | `chamfer_distance`, `missing_region_error`, `observed_region_error`, `stochastic_consistency_error` (batched, one value per tooth) |
+
 ## Everyday workflow
 
 1. Edit code in VS Code and run the tests.
