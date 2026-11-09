@@ -1,4 +1,4 @@
-# dental-3d-vae: completing incomplete 3D tooth scans
+# Reliable 3D tooth completion: accuracy and consistency of a β-VAE
 
 <p align="center">
   <img src="docs/figures/results/completion.gif" width="100%" alt="An upper first molar with 45 percent of it cut away (terracotta), the model's reconstruction over it, and the reconstruction alone (dark blue), rotating">
