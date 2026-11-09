@@ -128,6 +128,54 @@ if __name__ == "__main__":
 To regenerate the figures above, set `SAVE_FIGURES = True` in the notebook (local only; needs
 `kaleido` and Chrome).
 
+## Models
+
+A variational autoencoder (VAE). The encoder maps a tooth's point cloud to the mean and
+log-variance of a 32-dimensional latent distribution; the decoder turns a latent vector back into
+2,048 points. Decoding the mean gives one deterministic reconstruction; decoding several samples
+gives several plausible ones, which is what makes it possible to measure how consistent the model's
+reconstructions are.
+
+Encoders and decoders are interchangeable, e.g. `build_vae("dgcnnv2", "foldingnet")`:
+
+| | Name | Idea |
+|---|---|---|
+| Encoder | `simple_pointnet` | PointNet (Qi et al., 2017): a shared per-point MLP, then a max-pool over all points |
+| Encoder | `tnet_pointnet` | PointNet with learned alignment transforms (T-Nets) for the input points and their features |
+| Encoder | `pointnet_plus_plus` | PointNet++ (Qi et al., 2017b): PointNet applied to local neighbourhoods at three scales |
+| Encoder | `dgcnnv2` | A reduced DGCNN (Wang et al., 2019): edge convolutions over nearest-neighbour graphs, rebuilt from the learned features at every layer |
+| Decoder | `mlp` | Predicts every coordinate directly |
+| Decoder | `foldingnet` | FoldingNet (Yang et al., 2018): folds a flat 2D grid into the surface, in two steps |
+| Decoder | `atlasnet` | AtlasNet (Groueix et al., 2018): the surface as four learned, deformed squares |
+
+The dissertation selected DGCNN + FoldingNet for partial-to-complete reconstruction: 646,278
+parameters, against 7–10 million for the encoders paired with the MLP decoder.
+
+### Verified against the dissertation
+
+The models were rewritten from the dissertation code (about 2,850 lines down to 350) with every
+layer name kept, so all 16 trained checkpoints load unchanged with `load_checkpoint` (the
+checkpoints themselves are not in this repository). Each was verified by running the original code
+and the rewrite on the same test teeth, complete or partial, on the same CPU: the outputs are
+identical, and so are the parameter counts. Reconstructions stored from the training GPUs differ
+only by floating-point arithmetic (TF32 convolutions on the A100), which changes mean
+reconstruction error by at most 0.013%.
+
+One change is deliberate. The dissertation's PointNet++ started farthest point sampling at a random
+point, so even its deterministic reconstructions varied between runs: by up to 13% per tooth,
+though under 0.2% on average. It now starts at point 0, as the original PointNet++ implementation
+does, and a test keeps the encoder deterministic.
+
+### Code
+
+| File | Contents |
+|---|---|
+| `src/dental_3d_vae/ml/models/vae.py` | `VAE` (`forward` for training, `reconstruct` for evaluation), `build_vae`, `load_checkpoint` |
+| `src/dental_3d_vae/ml/models/pointnet.py` | PointNet and T-Net PointNet encoders |
+| `src/dental_3d_vae/ml/models/pointnet2.py` | PointNet++ encoder |
+| `src/dental_3d_vae/ml/models/dgcnn.py` | DGCNN encoder |
+| `src/dental_3d_vae/ml/models/decoders.py` | MLP, FoldingNet and AtlasNet decoders |
+
 ## Everyday workflow
 
 1. Edit code in VS Code and run the tests.
