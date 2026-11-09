@@ -1,6 +1,7 @@
 """Run folders: one self-contained directory of outputs per experiment run."""
 
 import json
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -51,16 +52,13 @@ def load_run(run_dir: Path) -> dict:
     }
 
 
-def save_checkpoint(
-    run_dir: Path, model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int
-) -> None:
-    """Overwrite checkpoint.pt with the latest model and optimizer state.
+def save_model(run_dir: Path, model: nn.Module, config: ExperimentConfig, epoch: int) -> None:
+    """Overwrite model.pt with the model's weights, its config and the epoch.
 
-    Writes to a temporary file first, so a disconnect mid-save cannot leave a
-    corrupted checkpoint behind.
+    Opens with ``dental_3d_vae.ml.models.vae.load_checkpoint``. Writes to a temporary
+    file first, so a disconnect mid-save cannot leave a corrupted file behind.
     """
-    path = run_dir / "checkpoint.pt"
+    path = run_dir / "model.pt"
     tmp_path = path.with_suffix(".tmp")
-    state = {"epoch": epoch, "model": model.state_dict(), "optimizer": optimizer.state_dict()}
-    torch.save(state, tmp_path)
+    torch.save({"config": asdict(config), "model_state_dict": model.state_dict(), "epoch": epoch}, tmp_path)
     tmp_path.replace(path)

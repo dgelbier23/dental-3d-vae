@@ -2,10 +2,10 @@ import json
 from pathlib import Path
 
 import torch
-from torch import nn
 
 from dental_3d_vae.experiments.config import ExperimentConfig, load_config
-from dental_3d_vae.experiments.runs import create_run_dir, load_metrics, load_run, log_metrics, save_checkpoint
+from dental_3d_vae.experiments.runs import create_run_dir, load_metrics, load_run, log_metrics, save_model
+from dental_3d_vae.ml.models.vae import build_vae, load_checkpoint
 
 
 def test_create_run_dir_saves_config_and_environment(tmp_path: Path) -> None:
@@ -42,16 +42,14 @@ def test_load_run_returns_everything_saved(tmp_path: Path) -> None:
     assert run["metrics"] == [{"epoch": 1, "val_accuracy": 0.9}]
 
 
-def test_checkpoint_restores_model_and_is_overwritten(tmp_path: Path) -> None:
-    model = nn.Linear(3, 2)
-    optimizer = torch.optim.Adam(model.parameters())
+def test_save_model_opens_with_load_checkpoint_and_is_overwritten(tmp_path: Path) -> None:
+    config = ExperimentConfig(encoder="simple_pointnet", decoder="mlp", latent_dim=4, num_points=16)
+    model = build_vae(config.encoder, config.decoder, config.latent_dim, config.num_points).eval()
 
-    save_checkpoint(tmp_path, model, optimizer, epoch=1)
-    save_checkpoint(tmp_path, model, optimizer, epoch=2)
+    save_model(tmp_path, model, config, epoch=1)
+    save_model(tmp_path, model, config, epoch=2)
 
-    checkpoint = torch.load(tmp_path / "checkpoint.pt")
-    restored = nn.Linear(3, 2)
-    restored.load_state_dict(checkpoint["model"])
-    assert checkpoint["epoch"] == 2
-    assert all(torch.equal(a, b) for a, b in zip(model.parameters(), restored.parameters()))
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["checkpoint.pt"]  # No .tmp left.
+    restored, checkpoint = load_checkpoint(tmp_path / "model.pt")
+    assert checkpoint["epoch"] == 2 and checkpoint["config"]["decoder"] == "mlp"
+    assert all(torch.equal(a, b) for a, b in zip(model.state_dict().values(), restored.state_dict().values()))
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["model.pt"]  # No .tmp left.
