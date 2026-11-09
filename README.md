@@ -27,7 +27,8 @@ In VS Code, select the `.venv` kernel for notebooks.
 ## Data preparation
 
 Turns intra-oral jaw scans into a dataset of individual teeth, each a normalised 2,048-point
-cloud, ready for training.
+cloud, then makes controlled incomplete versions of every tooth for learning to reconstruct
+missing geometry.
 
 <p align="center">
   <img src="docs/figures/jaw_segmentation.gif" width="49%" alt="A segmented jaw scan rotating, one colour per tooth">
@@ -50,6 +51,30 @@ name, so the output is identical whatever the number of workers. A scan that fai
 listed in `dataset_info.json`. On 300 scans (20 cores) the build takes under two minutes and gives
 4,038 teeth.
 
+### Partial teeth
+
+Intra-oral scans are often incomplete (occlusion, patient movement, braces). To study how well a
+model recovers missing geometry, every tooth is cut in two controlled ways, removing 0, 15, 30 or
+45% of its points:
+
+- **Plane cut:** everything beyond a randomly oriented plane, like a scan's field of view ending.
+- **Connected patch:** a random point and its nearest neighbours, like a localised hole.
+
+<p align="center">
+  <img src="docs/figures/partial_teeth.gif" width="90%" alt="A first molar under plane cuts and connected-patch removal at 15, 30 and 45 percent missing, rotating; kept points teal, removed points dark brown, cutting planes in sand">
+</p>
+
+This gives 32,304 partials (4,038 teeth × 2 methods × 4 levels) in about four seconds. Only *which*
+points each partial lost is stored (`partial_masks.h5`, one true/false per point, 9 MB), so every
+partial and its missing region are rebuilt exactly from the complete tooth, and each plane cut's
+plane can be recovered for display. Each partial is seeded from (seed, tooth, method, fraction),
+so every model sees exactly the same incomplete teeth, and the masks carry a fingerprint of the
+complete dataset they belong to, so they cannot be paired with the wrong one.
+
+For training, the kept points are padded back to 2,048 by adding points between observed
+neighbours, so nothing comes from the missing region. Every partial inherits its source tooth's
+train/validation/test split, so no tooth is used for training in one form and testing in another.
+
 ### Dataset
 
 [Teeth3DS+](https://osf.io/xctdy/) (Ben-Hamadou et al., 2022): clinically acquired intra-oral
@@ -71,10 +96,12 @@ outputs (they would contain the data).
    and `lower/` folders in `data/raw/teeth3ds/`.
 2. Open `notebooks/02_data_preparation.ipynb`, set `REBUILD = True` in section 1 and run all cells.
    The notebook shows a segmented jaw, its teeth as point clouds, an overview of the dataset,
-   example teeth and the train/validation/test split.
+   example teeth and the train/validation/test split, then builds and shows the partial teeth
+   (automatically, if they do not exist yet).
 
-The output goes to `data/processed/complete/`. With processed data but no raw scans, the notebook
-skips the scan-to-teeth demo and runs the rest. Build locally rather than in Colab: Colab runtimes
+The outputs go to the folders set in section 1, currently `data/processed/complete_rebuilt/` and
+`data/processed/partial_rebuilt/`. With processed data but no raw scans, the notebook skips the
+scan-to-teeth demo and runs the rest. Build locally rather than in Colab: Colab runtimes
 usually have only two CPU cores.
 
 From a Python script, guard the call (worker processes re-import the script on Windows):
@@ -93,8 +120,9 @@ if __name__ == "__main__":
 | File | Contents |
 |---|---|
 | `src/dental_3d_vae/ml/preprocessing.py` | `extract_teeth`, `farthest_point_sampling`, `normalise`, `build_complete_dataset` |
-| `src/dental_3d_vae/ml/data.py` | `stratified_split` (70/15/15 by tooth type), `CompleteToothDataset` (PyTorch, lazy HDF5) |
-| `src/dental_3d_vae/viz/pointclouds.py` | Interactive 3D jaw and point-cloud views; `save_rotating_gif` for figures |
+| `src/dental_3d_vae/ml/partial.py` | `plane_cut`, `connected_patch`, `upsample`, `cutting_plane`, `build_partial_dataset` |
+| `src/dental_3d_vae/ml/data.py` | `stratified_split` (70/15/15 by tooth type); PyTorch datasets `CompleteToothDataset` and `PartialToothDataset` (lazy HDF5) |
+| `src/dental_3d_vae/viz/pointclouds.py` | Interactive 3D jaw, point-cloud and partial-tooth views; `save_rotating_gif` for figures |
 | `notebooks/02_data_preparation.ipynb` | The pipeline, step by step, with visualisations |
 
 To regenerate the figures above, set `SAVE_FIGURES = True` in the notebook (local only; needs
