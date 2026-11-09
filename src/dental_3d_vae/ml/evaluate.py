@@ -46,3 +46,12 @@ def evaluate(model: VAE, loader: DataLoader, config: ExperimentConfig, device: t
             batch_metrics["orpe"] = observed_region_error(reconstruction, complete, removed)
         metrics.append(pd.DataFrame({name: values.cpu().numpy() for name, values in batch_metrics.items()}))
     return pd.concat([loader.dataset.metadata, pd.concat(metrics, ignore_index=True)], axis=1)
+
+
+def summarise(results: dict[str, pd.DataFrame], metric: str = "cd") -> pd.DataFrame:
+    """One row per model: mean, median, interquartile range, min and max of ``metric`` over teeth."""
+    def stats(values: pd.Series) -> pd.Series:
+        return pd.Series({"Mean": values.mean(), "Median": values.median(),
+                          "IQR": values.quantile(0.75) - values.quantile(0.25),
+                          "Min": values.min(), "Max": values.max()})
+    return pd.DataFrame({label: stats(frame[metric]) for label, frame in results.items()}).T
