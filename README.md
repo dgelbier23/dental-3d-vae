@@ -203,6 +203,76 @@ changes by under 0.4%).
 |---|---|
 | `src/dental_3d_vae/ml/metrics.py` | `chamfer_distance`, `missing_region_error`, `observed_region_error`, `stochastic_consistency_error` (batched, one value per tooth) |
 
+## Results
+
+The dissertation's experiments, rebuilt from its 16 trained models. Every model is tested on the same
+606 held-out teeth (2,424 partial teeth for the completion models), and every number below
+reproduces the dissertation report's tables exactly from the per-tooth results stored with the models.
+
+<p align="center">
+  <img src="docs/figures/results/completion.gif" width="100%" alt="A partially cut molar, the model's reconstruction over it, the reconstruction alone, and the ground truth with the missing region in dark brown, rotating">
+</p>
+
+**Choosing the architecture** (complete teeth in, complete teeth out; one change per experiment):
+
+- **Encoder:** the four encoders end within 5% of each other in mean Chamfer distance, a gap similar
+  to the variation between reruns. DGCNN was kept for its fast early learning and its explicit
+  modelling of local neighbourhoods.
+- **Decoder:** FoldingNet beats the MLP decoder by 14% in mean Chamfer distance with 91% fewer
+  parameters (646,278 against 7.0 million) and is the best of three decoders on 24 of the 32 tooth
+  positions. For every model, lower incisors are the easiest teeth and third molars the hardest:
+
+<p align="center">
+  <img src="docs/figures/results/decoders_by_tooth.png" width="100%" alt="Dental chart of mean Chamfer distance for each of the 32 tooth positions, for the MLP, FoldingNet and AtlasNet decoders; FoldingNet is outlined as lowest on 24 teeth">
+</p>
+
+- **KL weight β:** more regularisation shrinks the KL divergence but costs accuracy. β = 0.001 keeps
+  reconstruction close to the unregularised model (mean Chamfer distance 0.0622 against 0.0600) while
+  more than halving the KL divergence, so the completion models use it:
+
+<p align="center">
+  <img src="docs/figures/results/beta.png" width="90%" alt="Test Chamfer distance and KL divergence against the KL weight beta, with beta = 0.001 marked as chosen">
+</p>
+
+**Completing partial teeth** (DGCNN + FoldingNet, β = 0.001, one model per removal method):
+
+- Mean Chamfer distance is 0.0661 for plane cuts and 0.0652 for connected patches. It rises steadily
+  with the amount removed: by 12% (plane) and 10% (patch) from 15% to 45% missing, most in the third
+  molars.
+- The observed-region error barely moves: the model keeps what it was shown, even with almost half
+  the tooth missing.
+- Chamfer distance tracks the local errors (Pearson r = 0.78-0.90 with MRRE and ORPE) but not
+  perfectly, so a good overall score can hide a poorly rebuilt missing region.
+
+<p align="center">
+  <img src="docs/figures/results/missingness.png" width="100%" alt="Chamfer distance, MRRE and ORPE against the percentage of points removed, for plane cuts and connected patches, with 95% confidence intervals">
+</p>
+
+- In the dissertation, stochastic consistency (mean SCE 0.0313 and 0.0314) was only weakly correlated
+  with accuracy (r = 0.29 and 0.20): a model agreeing with itself says little about whether it is
+  right. SCE was not stored with the models; recomputing it here needs a GPU and is still to do.
+
+### Running it
+
+| Notebook | What it does | Where |
+|---|---|---|
+| `03_train_experiment.ipynb` | Trains one configuration (the dissertation's final model by default) | Colab GPU |
+| `04_evaluate_run.ipynb` | Tests a trained model (a new run or a dissertation checkpoint): per-tooth metrics, charts, best/median/worst teeth in 3D, and a comparison of all runs | Colab GPU |
+| `05_dissertation_results.ipynb` | The experiments above, from the stored results; set `SAVE_FIGURES = True` to regenerate these figures | Local, under a minute |
+
+The trained models are not in this repository; notebook 05 needs them in
+`artifacts/dissertation_checkpoints/`.
+
+### Code
+
+| File | Contents |
+|---|---|
+| `src/dental_3d_vae/ml/train.py` | `fit`: training with early stopping on validation Chamfer distance, saving the best model as it goes |
+| `src/dental_3d_vae/ml/evaluate.py` | `evaluate`: per-tooth test metrics, with seeded sampling for SCE; `summarise` |
+| `src/dental_3d_vae/experiments/` | `ExperimentConfig`, run folders, and `load_dissertation_run` (the dissertation's checkpoints in this repository's formats) |
+| `src/dental_3d_vae/viz/results.py` | Odontogram (dental chart), loss curves, distributions, β ablation, metrics against missingness, metric scatters, tables |
+| `src/dental_3d_vae/viz/pointclouds.py` | `plot_completion` and `plot_point_errors`: one completion in 3D, and where it misses |
+
 ## Everyday workflow
 
 1. Edit code in VS Code and run the tests.
