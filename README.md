@@ -249,10 +249,12 @@ upload the processed folders (`data/processed/complete_rebuilt/` and `partial_re
 `MyDrive/dental-3d-vae/data/processed/`. The dissertation's trained models are not in this
 repository; notebooks 04 and 05 expect them in `artifacts/dissertation_checkpoints/`.
 
-**Colab.** Open a notebook with File > Open notebook > GitHub and pick a GPU runtime. The first cell
-clones the latest `main` branch using a `GITHUB_TOKEN` Colab secret (a fine-grained, read-only token).
-Treat Colab copies as read-only: edit in VS Code, push, then in Colab use Runtime > Restart session
-and run all cells. Runs are saved to `MyDrive/dental-3d-vae/runs/` (locally `artifacts/runs/`).
+**Colab.** Open a notebook with File > Open notebook > GitHub, pick a GPU runtime and run all cells:
+the first cell downloads the latest code, with nothing to set up. (Only if the repository is private,
+for example a private copy: add a fine-grained, read-only GitHub token as a Colab secret named
+`GITHUB_TOKEN`, with notebook access.)
+To run your own changes, push them, then in Colab use Runtime > Restart session and run all cells.
+Runs are saved to `MyDrive/dental-3d-vae/runs/` (locally `artifacts/runs/`).
 
 From a Python script, guard the dataset build (worker processes re-import the script on Windows):
 
