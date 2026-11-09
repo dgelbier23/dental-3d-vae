@@ -39,6 +39,7 @@ reports/
 archive/
 
 # Local editor / OS files
+CLAUDE.md
 .vscode/
 .DS_Store
 Thumbs.db
