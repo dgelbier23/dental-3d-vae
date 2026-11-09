@@ -79,3 +79,13 @@ def test_completion_and_error_views_show_each_region() -> None:
     observed, missing = errors.data
     assert max(observed.marker.color) == 0 and min(missing.marker.color) > 0  # observed points were kept
     assert errors.layout.coloraxis.cmax == np.percentile(np.r_[observed.marker.color, missing.marker.color], 95)
+
+
+def test_completion_can_leave_out_the_ground_truth() -> None:
+    complete = np.random.default_rng(0).normal(size=(40, 3))
+    removed = np.arange(40) < 10
+
+    fig = plot_completion(complete, removed, complete + 0.01, ground_truth=False)
+
+    assert "Missing region" not in {trace.name for trace in fig.data}
+    assert [a.text for a in fig.layout.annotations] == ["Partial input", "Reconstruction over the input", "Reconstruction"]

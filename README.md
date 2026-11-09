@@ -1,7 +1,10 @@
 # dental-3d-vae: completing incomplete 3D tooth scans
 
 <p align="center">
-  <img src="docs/figures/results/completion.gif" width="100%" alt="A partially cut molar, the model's reconstruction over it, the reconstruction alone, and the ground truth with the missing region in dark brown, rotating">
+  <img src="docs/figures/results/completion.gif" width="100%" alt="An upper first molar with 45 percent of it cut away (terracotta), the model's reconstruction over it, and the reconstruction alone (dark blue), rotating">
+  <br>
+  <em>One of the model's best molar completions: an upper first molar with 45% of it removed by a plane cut
+  (Chamfer distance 0.053; the median for molars at this level is 0.072).</em>
 </p>
 
 Intra-oral 3D scans are often incomplete: the scanner cannot see behind neighbouring teeth, the patient
@@ -24,7 +27,7 @@ reproduces the dissertation exactly.
   preservation of the observed region, and the consistency of sampled completions, per tooth position.
 - **Verified rewrite:** all 16 trained models load unchanged and give identical outputs to the original
   code; the report's result tables reproduce exactly from the stored per-tooth results.
-- **Engineering:** 97 automated tests, seeded and reproducible data generation, CPU-safe local
+- **Engineering:** 98 automated tests, seeded and reproducible data generation, CPU-safe local
   development with GPU training on Google Colab, and licensed patient data kept out of Git (a test
   enforces it).
 
@@ -289,7 +292,7 @@ src/dental_3d_vae/
     ├── results.py         dental chart, distributions, β ablation, missingness, scatters, tables
     └── pointclouds.py     3D jaws, teeth, partial teeth and completions
 notebooks/                 the five notebooks above
-tests/                     97 tests, run on a CPU in about 25 seconds
+tests/                     98 tests, run on a CPU in about 25 seconds
 docs/figures/              the figures in this README
 ```
 

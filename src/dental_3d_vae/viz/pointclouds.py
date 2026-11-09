@@ -21,7 +21,11 @@ TOOTH_COLOURS = LIFE_HISTORIES[:3] + LIFE_HISTORIES[4:]  # the other six, cycled
 KEPT_COLOUR = LIFE_HISTORIES[5]  # teal
 REMOVED_COLOUR = LIFE_HISTORIES[0]  # dark brown
 PLANE_COLOUR = LIFE_HISTORIES[3]  # light sand, drawn translucent
-RECONSTRUCTION_COLOUR = LIFE_HISTORIES[6]  # dark blue: distinct from kept and removed, also for colour-blind readers
+# Completion views: warm input against the cool reconstruction, with teal for the missing region;
+# all three pairs pass a colour-vision check.
+INPUT_COLOUR = LIFE_HISTORIES[1]  # terracotta
+RECONSTRUCTION_COLOUR = LIFE_HISTORIES[6]  # dark blue
+MISSING_COLOUR = LIFE_HISTORIES[5]  # teal
 
 
 def _hide_axes(fig: go.Figure) -> None:
@@ -128,20 +132,22 @@ def _same_box(fig: go.Figure, clouds: list) -> None:
     fig.update_layout(legend=dict(itemsizing="constant"))
 
 
-def plot_completion(complete: np.ndarray, removed: np.ndarray, reconstruction: np.ndarray) -> go.Figure:
+def plot_completion(complete: np.ndarray, removed: np.ndarray, reconstruction: np.ndarray,
+                    ground_truth: bool = True) -> go.Figure:
     """One partial tooth's completion, left to right: the model's input (the observed
-    points), the reconstruction over it, the reconstruction alone, and the ground truth
-    with its missing region."""
+    points), the reconstruction over it, the reconstruction alone and, if ``ground_truth``,
+    the complete tooth with its missing region."""
     complete, removed, reconstruction = np.asarray(complete), np.asarray(removed), np.asarray(reconstruction)
-    observed = ("Observed points", complete[~removed], KEPT_COLOUR, 1.5)
+    observed = ("Observed points", complete[~removed], INPUT_COLOUR, 1.5)
     rebuilt = ("Reconstruction", reconstruction, RECONSTRUCTION_COLOUR, 1.5)
     panels = {
         "Partial input": [observed],
         "Reconstruction over the input": [observed, (*rebuilt[:3], 1.2)],
         "Reconstruction": [rebuilt],
-        "Ground truth": [observed, ("Missing region", complete[removed], REMOVED_COLOUR, 1.5)],
     }
-    fig, _ = _panel_grid(list(panels), cols=4)
+    if ground_truth:
+        panels["Ground truth"] = [observed, ("Missing region", complete[removed], MISSING_COLOUR, 1.5)]
+    fig, _ = _panel_grid(list(panels), cols=len(panels))
     for col, traces in enumerate(panels.values(), start=1):
         for name, cloud, colour, size in traces:
             first = not any(trace.name == name for trace in fig.data)
