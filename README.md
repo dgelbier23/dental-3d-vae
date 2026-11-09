@@ -13,6 +13,12 @@ clouds of real teeth to rebuild the missing geometry, and asks two questions: ho
 complete a tooth, and how *consistently*, given that a VAE can produce many plausible completions of
 the same input?
 
+Consistency matters because in clinical use there is no complete tooth to check a completion against.
+A model that rebuilds the same partial tooth differently each time is signalling that it is unsure, and
+that uncertainty is exactly what a clinician would need to see. This project measures it, and finds
+that it cannot stand in for accuracy: how much the model agrees with itself is only weakly related to
+how right it is, so a reliable system needs to report both.
+
 It is the MSc dissertation of **Dylan Gelbier** (MSc Artificial Intelligence, Loughborough University,
 2026), rebuilt from research code into a tested, documented Python package. Every result below
 reproduces the dissertation exactly.
