@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 400" width="1000" height="400" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">
+  <!-- How a beta-VAE completes a tooth. Colours: LifeHistories palette only
+       (teal = observed input, dark brown = missing region, dark blue = reconstruction, sand = latent space). -->
+  <defs>
+    <pattern id="observed" width="7" height="7" patternUnits="userSpaceOnUse">
+      <circle cx="3.5" cy="3.5" r="1.7" fill="#6baeb0"/>
+    </pattern>
+    <pattern id="rebuilt" width="7" height="7" patternUnits="userSpaceOnUse">
+      <circle cx="3.5" cy="3.5" r="1.7" fill="#376988"/>
+    </pattern>
+    <path id="tooth" d="M10,40 C10,15 25,8 35,14 C42,6 58,6 65,14 C75,8 90,15 90,40 C90,58 86,66 82,72 L78,118 C77,126 68,126 66,118 L58,82 C54,78 46,78 42,82 L34,118 C32,126 23,126 22,118 L18,72 C14,66 10,58 10,40 Z"/>
+    <clipPath id="above-cut"><polygon points="0,0 100,0 100,52 0,84"/></clipPath>
+    <clipPath id="below-cut"><polygon points="0,84 100,52 100,130 0,130"/></clipPath>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#376988"/>
+    </marker>
+  </defs>
+
+  <rect x="1" y="1" width="998" height="398" rx="18" fill="#ffffff" stroke="#dac3a9" stroke-width="2"/>
+
+  <!-- 1. Partial tooth -->
+  <g transform="translate(45,70)">
+    <use href="#tooth" fill="url(#observed)" clip-path="url(#above-cut)"/>
+    <use href="#tooth" fill="none" stroke="#844836" stroke-width="2" stroke-dasharray="5 4" clip-path="url(#below-cut)"/>
+    <line x1="0" y1="84" x2="100" y2="52" stroke="#b99364" stroke-width="1.5"/>
+  </g>
+  <text x="95" y="225" text-anchor="middle" font-size="16" font-weight="600" fill="#376988">Partial tooth</text>
+  <text x="95" y="245" text-anchor="middle" font-size="13" fill="#376988">observed points;</text>
+  <text x="95" y="262" text-anchor="middle" font-size="13" fill="#844836">dashed: missing</text>
+
+  <line x1="160" y1="135" x2="200" y2="135" stroke="#376988" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 2. Encoder -->
+  <polygon points="208,75 318,105 318,165 208,195" fill="#dac3a9" fill-opacity="0.45" stroke="#376988" stroke-width="2"/>
+  <text x="258" y="131" text-anchor="middle" font-size="16" font-weight="600" fill="#376988">Encoder</text>
+  <text x="258" y="151" text-anchor="middle" font-size="13" fill="#376988">DGCNN</text>
+
+  <line x1="324" y1="135" x2="364" y2="135" stroke="#376988" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 3. Latent distribution -->
+  <path d="M375,185 C420,185 432,82 460,82 C488,82 500,185 545,185 Z" fill="#b99364" fill-opacity="0.35" stroke="#b99364" stroke-width="2"/>
+  <line x1="460" y1="82" x2="460" y2="185" stroke="#376988" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <line x1="436" y1="140" x2="484" y2="140" stroke="#376988" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <circle cx="447" cy="172" r="5" fill="#376988"/>
+  <circle cx="468" cy="160" r="5" fill="#376988"/>
+  <circle cx="489" cy="176" r="5" fill="#376988"/>
+  <text x="460" y="72" text-anchor="middle" font-size="15" font-weight="600" fill="#376988">μ (mean)</text>
+  <text x="503" y="136" font-size="14" fill="#376988">σ</text>
+  <text x="460" y="215" text-anchor="middle" font-size="16" font-weight="600" fill="#376988">A cloud of likely codes</text>
+  <text x="460" y="235" text-anchor="middle" font-size="13" fill="#376988">32-dimensional latent space</text>
+  <text x="460" y="255" text-anchor="middle" font-size="13" fill="#376988">sample: z = μ + σ · ε,  ε ~ N(0, I)</text>
+
+  <line x1="556" y1="135" x2="596" y2="135" stroke="#376988" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 4. Decoder -->
+  <polygon points="604,105 714,75 714,195 604,165" fill="#dac3a9" fill-opacity="0.45" stroke="#376988" stroke-width="2"/>
+  <text x="659" y="131" text-anchor="middle" font-size="16" font-weight="600" fill="#376988">Decoder</text>
+  <text x="659" y="151" text-anchor="middle" font-size="13" fill="#376988">FoldingNet</text>
+
+  <line x1="720" y1="135" x2="760" y2="135" stroke="#376988" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 5. Completed teeth: one per sampled code -->
+  <g transform="translate(826,58)"><use href="#tooth" fill="#ffffff" stroke="#376988" stroke-opacity="0.35" stroke-width="1.5"/></g>
+  <g transform="translate(800,64)"><use href="#tooth" fill="#ffffff" stroke="#376988" stroke-opacity="0.6" stroke-width="1.5"/></g>
+  <g transform="translate(774,70)"><use href="#tooth" fill="#ffffff"/><use href="#tooth" fill="url(#rebuilt)"/></g>
+  <text x="860" y="225" text-anchor="middle" font-size="16" font-weight="600" fill="#376988">Completed teeth</text>
+  <text x="860" y="245" text-anchor="middle" font-size="13" fill="#376988">one per sampled code;</text>
+  <text x="860" y="262" text-anchor="middle" font-size="13" fill="#376988">their spread is the SCE</text>
+
+  <!-- Loss -->
+  <line x1="40" y1="292" x2="960" y2="292" stroke="#dac3a9" stroke-width="1.5"/>
+  <text x="500" y="325" text-anchor="middle" font-size="18" fill="#376988">
+    <tspan font-weight="600">Training loss</tspan>  =  Chamfer(reconstruction, complete tooth)  +  β · KL( q(z | x)  ‖  N(0, I) )
+  </text>
+  <text x="462" y="352" text-anchor="middle" font-size="13" fill="#844836">accuracy: matches the true tooth</text>
+  <text x="728" y="352" text-anchor="middle" font-size="13" fill="#844836">regularity: codes stay near a bell curve</text>
+  <text x="500" y="380" text-anchor="middle" font-size="13" fill="#376988">β sets the balance: too small and the latent space is irregular, too large and reconstructions blur. Here β = 0.001.</text>
+</svg>

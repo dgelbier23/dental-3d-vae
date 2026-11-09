@@ -138,11 +138,21 @@ every other position), which is one reason they are the hardest teeth to reconst
 
 ### Models
 
-A variational autoencoder. The encoder maps a tooth's point cloud to the mean and log-variance of a
-32-dimensional latent distribution; the decoder turns a latent vector back into 2,048 points.
-Decoding the mean gives one deterministic reconstruction; decoding several samples gives several
-plausible ones, which is what makes it possible to measure how consistent the model's
-reconstructions are.
+**What a β-VAE is.** An autoencoder compresses its input into a short code and rebuilds it from that
+code. A *variational* autoencoder (VAE) does not output one code for a tooth but a small cloud of
+likely codes: a mean μ and a spread σ in a 32-dimensional latent space. During training a code is
+sampled from that cloud, so the decoder learns to turn *any* nearby code into a plausible tooth.
+
+<p align="center">
+  <img src="docs/figures/beta_vae.svg" width="100%" alt="Diagram: a partial tooth goes through the DGCNN encoder to a bell-shaped cloud of likely codes (mean mu, spread sigma); sampled codes go through the FoldingNet decoder to several completed teeth, whose spread is the SCE. Below, the training loss: Chamfer distance plus beta times the KL divergence">
+</p>
+
+The training loss has two parts: the Chamfer distance between the reconstruction and the complete
+tooth (accuracy), and the KL divergence, which pulls every cloud towards a standard bell curve
+(regularity). The weight β on the KL term, the "β" in β-VAE, sets the balance between them, which is
+what the β experiment in [Results](#results) measures. Once trained, decoding the mean μ gives the
+model's best single completion; decoding several sampled codes gives several plausible completions,
+and how much those agree is the stochastic consistency error (SCE).
 
 Encoders and decoders are interchangeable, e.g. `build_vae("dgcnnv2", "foldingnet")`:
 
