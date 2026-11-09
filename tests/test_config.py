@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from dental_3d_vae.experiments.config import ExperimentConfig, load_config, save_config
+from dental_3d_vae.experiments.config import ExperimentConfig, config_from_checkpoint, load_config, save_config
 
 
 def test_save_then_load_round_trips(tmp_path: Path) -> None:
@@ -46,3 +46,13 @@ def test_config_rejects_unknown_modes_and_methods() -> None:
         ExperimentConfig(reconstruction_mode="partal")
     with pytest.raises(ValueError, match="method"):
         ExperimentConfig(method="planes")
+
+
+def test_config_from_checkpoint_reads_this_repos_and_the_dissertations_configs() -> None:
+    ours = ExperimentConfig(run_name="mine", kl_weight=0.01)
+    dissertation = {"name": "PARTIAL_P1", "encoder": "dgcnnv2", "decoder": "foldingnet", "method": "connected_patch",
+                    "reconstruction_mode": "partial", "early_stopping": True, "epochs": 300}
+
+    assert config_from_checkpoint(dataclasses.asdict(ours)) == ours
+    restored = config_from_checkpoint(dissertation)
+    assert (restored.run_name, restored.method) == ("PARTIAL_P1", "connected_patch")

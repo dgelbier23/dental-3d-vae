@@ -1,7 +1,7 @@
 """Experiment configuration: one object that fully describes a run."""
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
 
@@ -51,3 +51,16 @@ def save_config(config: ExperimentConfig, path: Path) -> None:
 def load_config(path: Path) -> ExperimentConfig:
     """Read a saved config. Unknown keys (e.g. typos) raise TypeError."""
     return ExperimentConfig(**json.loads(path.read_text(encoding="utf-8")))
+
+
+def config_from_checkpoint(saved: dict) -> ExperimentConfig:
+    """The ``ExperimentConfig`` of a saved model's ``checkpoint["config"]``.
+
+    Accepts this repo's model.pt and the dissertation's checkpoints, whose ``name``
+    becomes ``run_name`` and whose settings this repo no longer uses are dropped.
+    """
+    known = {field.name for field in fields(ExperimentConfig)}
+    settings = {key: value for key, value in saved.items() if key in known}
+    if "name" in saved:
+        settings["run_name"] = saved["name"]
+    return ExperimentConfig(**settings)

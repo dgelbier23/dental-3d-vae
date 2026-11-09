@@ -9,8 +9,10 @@ import plotly.graph_objects as go
 import trimesh
 from PIL import Image
 from plotly.subplots import make_subplots
+from scipy.spatial import KDTree
 
 from dental_3d_vae.viz.colours import LIFE_HISTORIES
+from dental_3d_vae.viz.plotting import SEQUENTIAL
 
 GUM_COLOUR = LIFE_HISTORIES[3]  # light sand
 TOOTH_COLOURS = LIFE_HISTORIES[:3] + LIFE_HISTORIES[4:]  # the other six, cycled
@@ -19,6 +21,7 @@ TOOTH_COLOURS = LIFE_HISTORIES[:3] + LIFE_HISTORIES[4:]  # the other six, cycled
 KEPT_COLOUR = LIFE_HISTORIES[5]  # teal
 REMOVED_COLOUR = LIFE_HISTORIES[0]  # dark brown
 PLANE_COLOUR = LIFE_HISTORIES[3]  # light sand, drawn translucent
+RECONSTRUCTION_COLOUR = LIFE_HISTORIES[6]  # dark blue: distinct from kept and removed, also for colour-blind readers
 
 
 def _hide_axes(fig: go.Figure) -> None:
@@ -112,12 +115,70 @@ def plot_partials(
             first = not any(t.name == trace.name for t in fig.data)
             trace.update(legendgroup=trace.name, showlegend=first)  # One legend entry per kind.
             fig.add_trace(trace, row=n // cols + 1, col=n % cols + 1)
-    # The same box around every (centred) cloud: equal scale in every panel, and
-    # planes are clipped to the box instead of stretching it.
+    _same_box(fig, clouds)
+    return fig
+
+
+def _same_box(fig: go.Figure, clouds: list) -> None:
+    """The same box around every (centred) cloud: equal scale in every panel, and planes
+    are clipped to the box instead of stretching it. Legend dots readable, not 1.5 px."""
     reach = max(float(np.abs(np.asarray(cloud)).max()) for cloud in clouds)
     box = dict(range=[-reach, reach])
     fig.update_scenes(xaxis=box, yaxis=box, zaxis=box, aspectmode="cube")
-    fig.update_layout(legend=dict(itemsizing="constant"))  # Legend dots readable, not 1.5 px.
+    fig.update_layout(legend=dict(itemsizing="constant"))
+
+
+def plot_completion(complete: np.ndarray, removed: np.ndarray, reconstruction: np.ndarray) -> go.Figure:
+    """One partial tooth's completion, left to right: the model's input (the observed
+    points), the reconstruction over it, the reconstruction alone, and the ground truth
+    with its missing region."""
+    complete, removed, reconstruction = np.asarray(complete), np.asarray(removed), np.asarray(reconstruction)
+    observed = ("Observed points", complete[~removed], KEPT_COLOUR, 1.5)
+    rebuilt = ("Reconstruction", reconstruction, RECONSTRUCTION_COLOUR, 1.5)
+    panels = {
+        "Partial input": [observed],
+        "Reconstruction over the input": [observed, (*rebuilt[:3], 1.2)],
+        "Reconstruction": [rebuilt],
+        "Ground truth": [observed, ("Missing region", complete[removed], REMOVED_COLOUR, 1.5)],
+    }
+    fig, _ = _panel_grid(list(panels), cols=4)
+    for col, traces in enumerate(panels.values(), start=1):
+        for name, cloud, colour, size in traces:
+            first = not any(trace.name == name for trace in fig.data)
+            fig.add_trace(go.Scatter3d(x=cloud[:, 0], y=cloud[:, 1], z=cloud[:, 2], mode="markers", name=name,
+                                       legendgroup=name, showlegend=first, hoverinfo="skip",
+                                       marker=dict(size=size, color=colour)), row=1, col=col)
+    _same_box(fig, [complete, reconstruction])
+    fig.update_layout(height=360, legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.02, yanchor="top"))
+    return fig
+
+
+def plot_point_errors(complete: np.ndarray, reconstruction: np.ndarray, removed: np.ndarray | None = None) -> go.Figure:
+    """The ground-truth tooth, each point coloured by its distance to the nearest
+    reconstructed point; removed points (if ``removed`` is given) drawn as larger diamonds.
+
+    The colour scale stops at the 95th percentile, so a few outliers cannot wash it out.
+    """
+    complete, reconstruction = np.asarray(complete), np.asarray(reconstruction)
+    removed = np.zeros(len(complete), dtype=bool) if removed is None else np.asarray(removed)
+    distance = KDTree(reconstruction).query(complete)[0]
+    fig = go.Figure()
+    for name, mask, symbol, size in (("Observed points", ~removed, "circle", 2.5),
+                                     ("Missing region", removed, "diamond", 3.5)):
+        if mask.any():
+            fig.add_scatter3d(x=complete[mask, 0], y=complete[mask, 1], z=complete[mask, 2], mode="markers",
+                              name=name, showlegend=False, customdata=distance[mask],
+                              hovertemplate=f"{name}<br>distance %{{customdata:.4f}}<extra></extra>",
+                              marker=dict(size=size, symbol=symbol, color=distance[mask], coloraxis="coloraxis"))
+    summary = ", ".join(f"{name} {distance[mask].mean():.4f}" for name, mask in
+                        (("observed", ~removed), ("missing region (diamonds)", removed)) if mask.any())
+    _hide_axes(fig)
+    fig.update_layout(
+        title=dict(text="Where the reconstruction misses", subtitle_text=(
+            f"Mean distance: {summary} · scale capped at the 95th percentile")),
+        coloraxis=dict(colorscale=SEQUENTIAL, cmin=0, cmax=float(np.percentile(distance, 95)),
+                       colorbar=dict(title=dict(text="Distance", side="right"), thickness=12)),
+        height=520, margin=dict(l=0, r=0, t=90, b=10))
     return fig
 
 

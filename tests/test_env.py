@@ -63,3 +63,7 @@ def test_runs_dir_in_colab_mounts_drive_and_uses_subdir(
 
     monkeypatch.setattr(env, "REPO_ROOT", tmp_path / "my-project")
     assert env.get_runs_dir() == tmp_path / "MyDrive" / "my-project" / "runs"
+
+
+def test_copy_to_runtime_is_a_no_op_outside_colab(tmp_path) -> None:
+    assert env.copy_to_runtime(tmp_path) == tmp_path

@@ -1,6 +1,7 @@
 """Runtime environment: Colab detection, environment description, output folders."""
 
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -74,3 +75,15 @@ def get_runs_dir(drive_subdir: str | None = None) -> Path:
         runs_dir = REPO_ROOT / "artifacts" / "runs"
     runs_dir.mkdir(parents=True, exist_ok=True)
     return runs_dir
+
+
+def copy_to_runtime(folder: Path) -> Path:
+    """In Colab, a copy of ``folder`` on the runtime's own disk; locally, ``folder`` itself.
+
+    Data loaders read one tooth at a time, which is slow from Google Drive.
+    """
+    if not in_colab():
+        return folder
+    local = Path("/content/data") / folder.name
+    shutil.copytree(folder, local, dirs_exist_ok=True)
+    return local

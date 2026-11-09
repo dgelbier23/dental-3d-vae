@@ -208,8 +208,8 @@ changes by under 0.4%).
 1. Edit code in VS Code and run the tests.
 2. Commit and push to GitHub.
 3. In Colab, use Runtime > Restart session, then run all cells.
-4. Results save to Google Drive. Download a run folder into `artifacts/runs/`
-   to compare it locally with `notebooks/04_compare_runs.ipynb`.
+4. Results save to Google Drive. Evaluate and compare runs with `notebooks/04_evaluate_run.ipynb`
+   (in Colab, or locally once a run folder and its test results are in `artifacts/runs/`).
 
 ## Notebooks
 

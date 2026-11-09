@@ -8,8 +8,10 @@ from dental_3d_vae.viz.pointclouds import (
     GUM_COLOUR,
     KEPT_COLOUR,
     REMOVED_COLOUR,
+    plot_completion,
     plot_jaw,
     plot_partials,
+    plot_point_errors,
     plot_pointclouds,
     save_rotating_gif,
 )
@@ -62,3 +64,18 @@ def test_save_rotating_gif_writes_one_frame_per_angle_and_leaves_figure_unchange
     with Image.open(tmp_path / "spin.gif") as gif:
         assert gif.n_frames == 3 and gif.size == (200, 150)
     assert fig.layout.scene.camera.to_plotly_json() == camera_before
+
+
+def test_completion_and_error_views_show_each_region() -> None:
+    complete = np.random.default_rng(0).normal(size=(40, 3))
+    removed = np.arange(40) < 10
+
+    completion = plot_completion(complete, removed, complete + 0.01)
+    errors = plot_point_errors(complete, complete[10:], removed)
+
+    assert [t.name for t in completion.data] == ["Observed points", "Observed points", "Reconstruction",
+                                                 "Reconstruction", "Observed points", "Missing region"]
+    assert len(completion.data[-1].x) == 10 and sum(t.showlegend for t in completion.data) == 3
+    observed, missing = errors.data
+    assert max(observed.marker.color) == 0 and min(missing.marker.color) > 0  # observed points were kept
+    assert errors.layout.coloraxis.cmax == np.percentile(np.r_[observed.marker.color, missing.marker.color], 95)
