@@ -6,7 +6,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dental-3d-vae"
 version = "0.1.0"
-description = "Machine learning experimentation workspace"
+description = "Completing incomplete 3D tooth scans with a beta-VAE on point clouds"
+license = "MIT"
+authors = [{ name = "Dylan Gelbier" }]
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "h5py",
