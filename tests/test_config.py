@@ -39,3 +39,10 @@ def test_config_is_immutable() -> None:
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         config.epochs = 99  # type: ignore[misc]
+
+
+def test_config_rejects_unknown_modes_and_methods() -> None:
+    with pytest.raises(ValueError, match="reconstruction_mode"):
+        ExperimentConfig(reconstruction_mode="partal")
+    with pytest.raises(ValueError, match="method"):
+        ExperimentConfig(method="planes")

@@ -6,8 +6,9 @@ import h5py
 import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader, Dataset, TensorDataset, random_split
+from torch.utils.data import DataLoader, Dataset
 
+from dental_3d_vae.experiments.config import ExperimentConfig
 from dental_3d_vae.ml.partial import complete_fingerprint, upsample
 
 
@@ -103,26 +104,29 @@ class PartialToothDataset(Dataset):
         }
 
 
-def make_synthetic_classification(
-    n_samples: int, input_dim: int, num_classes: int, seed: int
-) -> TensorDataset:
-    """Random features labelled by a hidden linear "teacher", so labels are learnable.
+def make_loaders(
+    config: ExperimentConfig, complete_dir: Path, partial_dir: Path | None = None, num_workers: int = 2
+) -> dict[str, DataLoader]:
+    """Train, validation and test loaders for ``config``, keyed "train", "val", "test".
 
-    Uses its own generator, so the data depends only on ``seed``.
+    Uses the dissertation's split (``stratified_split`` with ``config.seed``). Partial runs
+    use every missing fraction of ``config.method``, each partial in its source tooth's
+    split. Only training batches are shuffled, reproducibly from ``config.seed``.
     """
-    generator = torch.Generator().manual_seed(seed)
-    features = torch.randn(n_samples, input_dim, generator=generator)
-    teacher_weights = torch.randn(input_dim, num_classes, generator=generator)
-    labels = (features @ teacher_weights).argmax(dim=1)
-    return TensorDataset(features, labels)
-
-
-def make_dataloaders(
-    dataset: Dataset, val_fraction: float, batch_size: int, seed: int
-) -> tuple[DataLoader, DataLoader]:
-    """Seeded train/validation split; training batches are shuffled reproducibly."""
-    generator = torch.Generator().manual_seed(seed)
-    train_set, val_set = random_split(dataset, [1 - val_fraction, val_fraction], generator=generator)
-    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, generator=generator)
-    val_loader = DataLoader(val_set, batch_size=batch_size)
-    return train_loader, val_loader
+    complete = stratified_split(pd.read_csv(complete_dir / "metadata.csv"), seed=config.seed)
+    complete_h5 = complete_dir / "teeth_dataset.h5"
+    if config.reconstruction_mode == "partial":
+        partials = pd.read_csv(partial_dir / "partial_metadata.csv")
+        partials = partials[partials["method"] == config.method]
+        split = partials["source_sample_id"].map(complete.set_index("sample_id")["split"])
+        datasets = {name: PartialToothDataset(complete_h5, partial_dir / "partial_masks.h5", partials[split == name])
+                    for name in ("train", "val", "test")}
+    else:
+        datasets = {name: CompleteToothDataset(complete_h5, complete[complete["split"] == name])
+                    for name in ("train", "val", "test")}
+    generator = torch.Generator().manual_seed(config.seed)
+    return {
+        name: DataLoader(dataset, batch_size=config.batch_size, shuffle=name == "train", generator=generator,
+                         num_workers=num_workers, pin_memory=torch.cuda.is_available())
+        for name, dataset in datasets.items()
+    }

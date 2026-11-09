@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import h5py
 import numpy as np
 import pandas as pd
@@ -5,11 +7,11 @@ import pytest
 import torch
 from torch.utils.data import DataLoader
 
+from dental_3d_vae.experiments.config import ExperimentConfig
 from dental_3d_vae.ml.data import (
     CompleteToothDataset,
     PartialToothDataset,
-    make_dataloaders,
-    make_synthetic_classification,
+    make_loaders,
     stratified_split,
 )
 from dental_3d_vae.ml.partial import build_partial_dataset
@@ -58,13 +60,13 @@ def test_complete_tooth_dataset_reads_rows_by_sample_id(tmp_path) -> None:
     assert torch.equal(item["complete"], torch.from_numpy(points[4]))
 
 
-def _complete_and_partials(tmp_path, seed: int = 0):
+def _complete_and_partials(tmp_path, seed: int = 0, n_per_type: int = 2):
     complete = tmp_path / f"complete{seed}"
     complete.mkdir()
-    points = np.random.default_rng(seed).random((6, 32, 3), dtype=np.float32)
+    points = np.random.default_rng(seed).random((3 * n_per_type, 32, 3), dtype=np.float32)
     with h5py.File(complete / "teeth_dataset.h5", "w") as f:
         f.create_dataset("points", data=points)
-    _metadata(2).to_csv(complete / "metadata.csv", index=False)
+    _metadata(n_per_type).to_csv(complete / "metadata.csv", index=False)
     partials = build_partial_dataset(complete, tmp_path / f"partial{seed}")
     return complete / "teeth_dataset.h5", tmp_path / f"partial{seed}" / "partial_masks.h5", partials
 
@@ -92,81 +94,42 @@ def test_partial_tooth_dataset_rejects_masks_from_another_complete_dataset(tmp_p
         PartialToothDataset(complete_h5, other_masks_h5, partials)
 
 
-def _dataset(seed: int = 0, n_samples: int = 200, num_classes: int = 3):
-    return make_synthetic_classification(
-        n_samples=n_samples, input_dim=8, num_classes=num_classes, seed=seed
-    )
+# --- make_loaders ------------------------------------------------------------------
 
 
-def _loaders(seed: int = 0, batch_size: int = 16):
-    return make_dataloaders(_dataset(), val_fraction=0.25, batch_size=batch_size, seed=seed)
+def test_make_loaders_complete_run_uses_the_split(tmp_path) -> None:
+    complete_h5, _, _ = _complete_and_partials(tmp_path, n_per_type=20)
+    config = ExperimentConfig(reconstruction_mode="complete", batch_size=8)
+
+    loaders = make_loaders(config, complete_h5.parent, num_workers=0)
+
+    split = stratified_split(_metadata(20))
+    assert {name: len(loader.dataset) for name, loader in loaders.items()} == {"train": 42, "val": 9, "test": 9}
+    test_ids = torch.cat([batch["sample_id"] for batch in loaders["test"]]).tolist()
+    assert test_ids == split.loc[split["split"] == "test", "sample_id"].tolist()  # unshuffled, in split order
 
 
-# --- make_synthetic_classification ----------------------------------------------
+def test_make_loaders_partial_run_uses_one_method_and_inherits_the_split(tmp_path) -> None:
+    complete_h5, masks_h5, _ = _complete_and_partials(tmp_path, n_per_type=20)
+    config = ExperimentConfig(method="connected_patch", batch_size=100)
+
+    loaders = make_loaders(config, complete_h5.parent, masks_h5.parent, num_workers=0)
+
+    split = stratified_split(_metadata(20))
+    test = next(iter(loaders["test"]))
+    assert len(loaders["train"].dataset) == 42 * 4  # every missing fraction
+    assert set(test["method"]) == {"connected_patch"}
+    assert set(test["source_sample_id"].tolist()) == set(split.loc[split["split"] == "test", "sample_id"])
 
 
-def test_synthetic_shapes_and_dtypes() -> None:
-    features, labels = _dataset(n_samples=50).tensors
+def test_make_loaders_shuffles_training_reproducibly(tmp_path) -> None:
+    complete_h5, _, _ = _complete_and_partials(tmp_path, n_per_type=20)
+    config = ExperimentConfig(reconstruction_mode="complete", batch_size=42)
 
-    assert features.shape == (50, 8)
-    assert labels.shape == (50,)
-    assert features.dtype == torch.float32
-    assert labels.dtype == torch.int64  # required by nn.CrossEntropyLoss
+    def first_two_epochs(seed: int) -> list[list[int]]:
+        loader = make_loaders(replace(config, seed=seed), complete_h5.parent, num_workers=0)["train"]
+        return [next(iter(loader))["sample_id"].tolist() for _ in range(2)]
 
-
-def test_synthetic_labels_cover_all_classes() -> None:
-    _, labels = _dataset(n_samples=1000, num_classes=3).tensors
-
-    assert set(labels.tolist()) == {0, 1, 2}
-
-
-def test_synthetic_depends_only_on_seed() -> None:
-    torch.manual_seed(0)  # Global RNG state must not matter.
-    a = _dataset(seed=1).tensors[0]
-    torch.manual_seed(999)
-    b = _dataset(seed=1).tensors[0]
-    c = _dataset(seed=2).tensors[0]
-
-    assert torch.equal(a, b)
-    assert not torch.equal(a, c)
-
-
-# --- make_dataloaders -----------------------------------------------------------
-
-
-def test_split_sizes_and_no_overlap() -> None:
-    train_loader, val_loader = _loaders()
-    train_idx = set(train_loader.dataset.indices)
-    val_idx = set(val_loader.dataset.indices)
-
-    assert (len(train_idx), len(val_idx)) == (150, 50)
-    assert train_idx.isdisjoint(val_idx)
-
-
-def test_split_is_reproducible() -> None:
-    def val_indices(seed: int) -> list[int]:
-        return list(_loaders(seed)[1].dataset.indices)
-
-    assert val_indices(3) == val_indices(3)
-    assert val_indices(3) != val_indices(4)
-
-
-def test_train_shuffle_is_reproducible_and_changes_each_epoch() -> None:
-    def first_two_epochs(seed: int) -> tuple[torch.Tensor, torch.Tensor]:
-        train_loader, _ = _loaders(seed, batch_size=150)  # One batch per epoch.
-        return next(iter(train_loader))[1], next(iter(train_loader))[1]
-
-    run_a = first_two_epochs(5)
-    run_b = first_two_epochs(5)
-
-    assert all(torch.equal(a, b) for a, b in zip(run_a, run_b))
-    assert not torch.equal(run_a[0], run_a[1])
-
-
-def test_val_loader_is_not_shuffled() -> None:
-    _, val_loader = _loaders()
-
-    first = torch.cat([features for features, _ in val_loader])
-    second = torch.cat([features for features, _ in val_loader])
-
-    assert torch.equal(first, second)
+    epochs = first_two_epochs(1)
+    assert epochs == first_two_epochs(1)
+    assert epochs[0] != epochs[1] and sorted(epochs[0]) == sorted(epochs[1])

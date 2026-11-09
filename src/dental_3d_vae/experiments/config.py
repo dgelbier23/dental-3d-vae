@@ -9,24 +9,38 @@ from pathlib import Path
 class ExperimentConfig:
     """Every setting that defines a run. Saved alongside the run's results.
 
-    Frozen so it cannot change mid-run; create variants with
-    ``dataclasses.replace(config, epochs=20)``.
+    Defaults are the dissertation's final model (P0: DGCNN + FoldingNet, trained to
+    complete plane-cut teeth). Field names match the dissertation's configs. Frozen
+    so it cannot change mid-run; create variants with
+    ``dataclasses.replace(config, kl_weight=0.01)``.
     """
 
-    run_name: str = "synthetic_baseline"
+    run_name: str = "P0_dgcnn_foldingnet_plane"
     seed: int = 42
     deterministic: bool = False
-    # Data
-    n_samples: int = 2000
-    input_dim: int = 20
-    num_classes: int = 2
-    val_fraction: float = 0.2
+    # Data: the encoder sees "complete" or "partial" teeth; the target is always complete.
+    reconstruction_mode: str = "partial"
+    method: str = "plane"  # Partial runs only: "plane" or "connected_patch".
+    num_points: int = 2048
     # Model
-    hidden_dim: int = 64
-    # Training
-    batch_size: int = 64
-    epochs: int = 10
+    encoder: str = "dgcnnv2"
+    decoder: str = "foldingnet"
+    latent_dim: int = 32
+    # Loss: Chamfer distance + kl_weight * KL + feature_transform_weight * T-Net regulariser
+    kl_weight: float = 0.001  # beta
+    feature_transform_weight: float = 0.0  # Only the tnet_pointnet encoder has the regulariser.
+    # Training: stop after `patience` epochs without a better validation Chamfer distance.
+    batch_size: int = 32
+    epochs: int = 300
+    patience: int = 20
     learning_rate: float = 1e-3
+
+    def __post_init__(self) -> None:
+        # Typos here would otherwise train the wrong model for an hour.
+        if self.reconstruction_mode not in ("complete", "partial"):
+            raise ValueError(f"reconstruction_mode must be 'complete' or 'partial', not {self.reconstruction_mode!r}")
+        if self.method not in ("plane", "connected_patch"):
+            raise ValueError(f"method must be 'plane' or 'connected_patch', not {self.method!r}")
 
 
 def save_config(config: ExperimentConfig, path: Path) -> None:
