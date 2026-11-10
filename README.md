@@ -1,4 +1,18 @@
-# Reliable 3D tooth completion: accuracy and consistency of a β-VAE
+<div align="center">
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:376988,100:844836&height=200&section=header&text=Reliable%203D%20Tooth%20Completion&fontSize=36&fontColor=ffffff&fontAlignY=38&desc=Accuracy%20and%20Consistency%20of%20a%20%CE%B2-VAE%20%7C%203D%20Point%20Clouds%20%7C%20Intra-oral%20Scans&descAlignY=60&descSize=15&descColor=dac3a9" width="100%" alt="Reliable 3D Tooth Completion: accuracy and consistency of a β-VAE"/>
+
+<br/>
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-376988?style=flat-square&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-Point%20Clouds-844836?style=flat-square&logo=pytorch&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-98%20passing-8fa997?style=flat-square&logo=pytest&logoColor=white)
+[![License](https://img.shields.io/badge/License-MIT-b99364?style=flat-square)](LICENSE)
+[![Dissertation](https://img.shields.io/badge/Dissertation-v1.0-6baeb0?style=flat-square)](https://github.com/dgelbier23/dental-3d-vae/tree/v1.0-dissertation)
+
+</div>
+
+---
 
 <p align="center">
   <img src="docs/figures/results/completion.gif" width="100%" alt="An upper first molar with 45 percent of it cut away (terracotta), the model's reconstruction over it, and the reconstruction alone (dark blue), rotating">
