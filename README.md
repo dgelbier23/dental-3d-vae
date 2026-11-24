@@ -99,9 +99,9 @@ Every model is tested on the same 606 held-out teeth (2,424 partial teeth for th
   <img src="docs/figures/results/missingness.png" width="100%" alt="Chamfer distance, MRRE and ORPE against the percentage of points removed, for plane cuts and connected patches, with 95% confidence intervals">
 </p>
 
-- In the dissertation, stochastic consistency (mean SCE 0.0313 and 0.0314) was only weakly correlated
-  with accuracy (r = 0.29 and 0.20): a model agreeing with itself says little about whether it is
-  right. SCE was not stored with the models; recomputing it here needs a GPU and is still to do.
+- Stochastic consistency (mean SCE 0.0313 and 0.0314, recomputed here on a GPU and matching the
+  dissertation) is only weakly correlated with accuracy (r = 0.29 and 0.20): a model agreeing with
+  itself says little about whether it is right.
 
 ## How it works
 
